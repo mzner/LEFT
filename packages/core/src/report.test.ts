@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildReports } from './report';
 import type { GitHubIssue, PullRequest, RepoInfo, Ticket } from './types';
 
@@ -15,10 +15,14 @@ function pr(overrides: Partial<PullRequest> & Pick<PullRequest, 'number'>): Pull
     headRef: `branch-${overrides.number}`,
     baseRef: 'master',
     state: 'merged',
+    createdAt: '2026-10-19T10:00:00Z',
     mergedAt: '2026-10-20T10:00:00Z',
     updatedAt: '2026-10-30T10:00:00Z',
     url: `https://github.com/${OCIS}/pull/${overrides.number}`,
     author: 'dev',
+    isDraft: false,
+    checks: 'none',
+    review: 'none',
     closingIssues: [],
     ...overrides,
   };
@@ -41,6 +45,10 @@ function ticket(overrides: Partial<Ticket> & Pick<Ticket, 'key'>): Ticket {
 }
 
 const link = (number: number) => `https://github.com/${OCIS}/pull/${number}`;
+
+// Ages are measured against the clock, so the tests run at a fixed moment.
+beforeEach(() => vi.useFakeTimers({ now: new Date('2026-10-22T00:00:00Z') }));
+afterEach(() => vi.useRealTimers());
 
 // Real data for OCISDEV-1464 as of 2026-10-30: #13255 is not linked in Jira.
 const ocisdev1464 = ticket({
@@ -386,5 +394,88 @@ describe('flag links', () => {
     expect(missing?.actions).toEqual([
       { label: 'Open master PR', url: `https://github.com/${OCIS}/pull/7` },
     ]);
+  });
+});
+
+describe('stale backports', () => {
+  const t = ticket({
+    key: 'OCISDEV-1548',
+    fixVersions: ['Frances - 9.0.0'],
+    remoteLinkUrls: [link(1), link(2), link(3)],
+  });
+  const master = pr({ number: 1, title: '[OCISDEV-1548] fix' });
+  const backport = (createdAt: string, number = 2) =>
+    pr({
+      number,
+      title: '[OCISDEV-1548] backport',
+      baseRef: 'stable-9.0',
+      state: 'open',
+      mergedAt: null,
+      createdAt,
+    });
+  const flagsFor = (prs: PullRequest[], flagOptions?: { staleBackportDays: number }) =>
+    buildReports({ projectKey: 'OCISDEV', tickets: [t], pullRequests: prs, repos, flagOptions })[0]!
+      .flags;
+
+  it('flags a backport open for more than 7 days as stale, besides "not merged yet"', () => {
+    const flags = flagsFor([master, backport('2026-10-10T00:00:00Z')]);
+    expect(flags).toEqual([
+      {
+        code: 'BACKPORT_STALE',
+        severity: 'error',
+        message: 'Backport to stable-9.0 open for 12 days (owncloud/ocis)',
+        actions: [{ label: 'Open backport', url: link(2) }],
+      },
+      {
+        code: 'BACKPORT_OPEN',
+        severity: 'warning',
+        message: 'Backport to stable-9.0 not merged yet (owncloud/ocis)',
+        actions: [{ label: 'Open backport', url: link(2) }],
+      },
+    ]);
+  });
+
+  it('counts whole days: "not merged yet" through day 7, stale from day 8', () => {
+    const codes = (createdAt: string) =>
+      flagsFor([master, backport(createdAt)]).map((flag) => flag.code);
+    expect(codes('2026-10-15T00:00:00Z')).toEqual(['BACKPORT_OPEN']); // 7 days
+    expect(codes('2026-10-14T00:00:01Z')).toEqual(['BACKPORT_OPEN']); // 7 days and 23:59:59
+    expect(codes('2026-10-14T00:00:00Z')).toEqual(['BACKPORT_STALE', 'BACKPORT_OPEN']); // 8 days
+  });
+
+  it('uses the limit it is given, and 0 turns the flag off', () => {
+    const prs = [master, backport('2026-10-19T00:00:00Z')]; // 3 days
+    expect(flagsFor(prs, { staleBackportDays: 2 }).map((f) => f.code)).toEqual([
+      'BACKPORT_STALE',
+      'BACKPORT_OPEN',
+    ]);
+    expect(flagsFor(prs, { staleBackportDays: 3 }).map((f) => f.code)).toEqual(['BACKPORT_OPEN']);
+    const ancient = [master, backport('2025-01-01T00:00:00Z')];
+    expect(flagsFor(ancient, { staleBackportDays: 0 }).map((f) => f.code)).toEqual([
+      'BACKPORT_OPEN',
+    ]);
+  });
+
+  it('goes by the oldest open backport when several target the branch', () => {
+    const flags = flagsFor([
+      master,
+      backport('2026-10-21T00:00:00Z', 2),
+      backport('2026-10-05T00:00:00Z', 3),
+    ]);
+    expect(flags.map((flag) => flag.code)).toEqual(['BACKPORT_STALE', 'BACKPORT_OPEN']);
+    expect(flags[0]!.message).toContain('open for 17 days');
+    for (const flag of flags) {
+      expect(flag.actions).toEqual([{ label: 'Open backport', url: link(3) }]);
+    }
+  });
+
+  it('does not flag a backport that is merged, however old', () => {
+    const merged = pr({
+      number: 2,
+      title: '[OCISDEV-1548] backport',
+      baseRef: 'stable-9.0',
+      createdAt: '2025-01-01T00:00:00Z',
+    });
+    expect(flagsFor([master, merged])).toEqual([]);
   });
 });

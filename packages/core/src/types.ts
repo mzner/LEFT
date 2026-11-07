@@ -40,6 +40,12 @@ export interface GitHubIssue extends GitHubIssueRef {
   state: 'open' | 'closed';
 }
 
+/** The latest commit's checks (CI): `none` when no checks ran. */
+export type ChecksState = 'passing' | 'failing' | 'pending' | 'none';
+
+/** GitHub's review verdict; `none` when the branch doesn't require reviews. */
+export type ReviewState = 'approved' | 'changes_requested' | 'review_required' | 'none';
+
 export interface PullRequest {
   repo: RepoName;
   number: number;
@@ -48,12 +54,18 @@ export interface PullRequest {
   headRef: string;
   baseRef: string;
   state: PrState;
+  /** ISO timestamp of when the PR was opened. */
+  createdAt: string;
   /** ISO timestamp; null unless merged. */
   mergedAt: string | null;
   /** ISO timestamp of the last activity: pushes, reviews, comments, edits, merge. */
   updatedAt: string;
   url: string;
   author: string | null;
+  /** A draft isn't ready for review yet. */
+  isDraft: boolean;
+  checks: ChecksState;
+  review: ReviewState;
   closingIssues: GitHubIssueRef[];
 }
 
@@ -110,6 +122,7 @@ export type FlagCode =
   | 'NO_PR'
   | 'PR_OPEN'
   | 'MISSING_BACKPORT'
+  | 'BACKPORT_STALE'
   | 'BACKPORT_OPEN'
   | 'NOT_LINKED_IN_JIRA'
   | 'KEY_MISSING_IN_PR'

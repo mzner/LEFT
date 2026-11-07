@@ -2,6 +2,7 @@
 import type { FlagAction, GitHubIssueRef, TicketReport } from '@ocis-dashboard/core';
 import { computed, inject, ref, watch } from 'vue';
 import { JIRA_LINKER, reconcileLinks, type LinkResult } from '../lib/jira-link';
+import { prHealth } from '../lib/pr-health';
 import { FLAGS, SOURCE_TEXT } from '../lib/view';
 
 /** Explains the row: what to fix, what each PR is and why it belongs to the ticket. */
@@ -155,6 +156,15 @@ const issues = computed(() => {
             {{ pr.repo }}#{{ pr.number }}
           </a>
           {{ pr.title }}
+          <p v-if="prHealth(pr).length > 0" class="pr-health" aria-label="Pull request health">
+            <span
+              v-for="chip in prHealth(pr)"
+              :key="chip.text"
+              class="health-chip"
+              :data-tone="chip.tone"
+              >{{ chip.text }}</span
+            >
+          </p>
           <p class="hint">
             Into <span class="identifier">{{ pr.baseRef }}</span>
             <template v-if="pr.author"> by {{ pr.author }}</template

@@ -8,6 +8,7 @@ import {
   type BranchRow,
   type BranchRowStatus,
 } from '../lib/branches';
+import { healthSummary } from '../lib/pr-health';
 import { SOURCE_TEXT } from '../lib/view';
 
 /** Where one ticket's fix is, branch by branch. Only this ticket's branches, so it never grows wide. */
@@ -31,7 +32,8 @@ function statusText(row: BranchRow): string {
 /** Tooltip on a PR number: what it is and why it counts for this ticket. */
 function prTitle({ pr, sources }: LinkedPr): string {
   const why = sources.map((source) => SOURCE_TEXT[source]).join(', ');
-  return `${pr.title}\n${pr.state}, into ${pr.baseRef}. Found by ${why}.`;
+  const health = healthSummary(pr);
+  return `${pr.title}\n${pr.state}, into ${pr.baseRef}. Found by ${why}.${health ? `\n${health}` : ''}`;
 }
 
 function note(row: BranchRow): string | undefined {

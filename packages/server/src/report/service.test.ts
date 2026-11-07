@@ -42,10 +42,14 @@ function pr(number: number, overrides: Partial<PullRequest> = {}): PullRequest {
     headRef: `branch-${number}`,
     baseRef: 'master',
     state: 'merged',
+    createdAt: '2026-10-19T10:00:00Z',
     mergedAt: '2026-10-20T10:00:00Z',
     updatedAt: '2026-10-30T10:00:00Z',
     url: `https://github.com/${OCIS}/pull/${number}`,
     author: 'dev',
+    isDraft: false,
+    checks: 'none',
+    review: 'none',
     closingIssues: [],
     ...overrides,
   };
@@ -89,6 +93,7 @@ function setup() {
     code,
     projectKey: 'OCISDEV',
     branchTemplates: {},
+    staleBackportDays: 7,
     cache: new TtlCache(60_000),
   });
   return { service, tickets, code };

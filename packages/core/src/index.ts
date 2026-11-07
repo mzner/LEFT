@@ -9,5 +9,13 @@ export {
   DEFAULT_BRANCH_TEMPLATE,
   isReleaseBranch,
 } from './versions';
-export { defaultFlagRules, evaluateFlags, type FlagRule, type FlagContext } from './flags';
+export {
+  ageInDays,
+  DEFAULT_STALE_BACKPORT_DAYS,
+  defaultFlagRules,
+  evaluateFlags,
+  type FlagContext,
+  type FlagOptions,
+  type FlagRule,
+} from './flags';
 export { buildReports, type BuildReportsInput } from './report';

@@ -16,6 +16,10 @@ export const FLAGS: Record<FlagCode, FlagMeta> = {
     label: 'Backport missing',
     hint: 'A fix version needs this branch, but no pull request targets it.',
   },
+  BACKPORT_STALE: {
+    label: 'Backport stale',
+    hint: 'The backport has been open longer than the limit. Check its CI and review below, and ask a reviewer or fix what blocks it.',
+  },
   NOT_LINKED_IN_JIRA: {
     label: 'Not linked in Jira',
     hint: "Add the pull request to the ticket's links in Jira.",

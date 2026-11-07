@@ -39,6 +39,8 @@ export interface ReportServiceDeps {
   projectKey: string;
   /** Per-repo fixVersion → branch template overrides. */
   branchTemplates: Record<RepoName, string>;
+  /** Open backports older than this many days are stale; 0 turns the flag off. */
+  staleBackportDays: number;
   /** Per-user cache; see Session.cache. */
   cache: TtlCache;
 }
@@ -108,6 +110,7 @@ export class ReportService {
         issues,
         repos: repoInfos,
         branchTemplates: this.deps.branchTemplates,
+        flagOptions: { staleBackportDays: this.deps.staleBackportDays },
       }),
     };
   }

@@ -230,7 +230,14 @@ interface PrDetails {
   author?: string;
   /** Merge date (`YYYY-MM-DD`) for merged PRs. */
   merged?: string;
+  /** How long an open PR has been open, counted back from now so the demo never ages out. */
+  openDays?: number;
+  draft?: boolean;
+  checks?: PullRequest['checks'];
+  review?: PullRequest['review'];
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function pr(
   repo: 'owncloud/ocis' | 'owncloud/reva',
@@ -247,6 +254,10 @@ function pr(
     headRef: details.head ?? `fix/${number}`,
     baseRef: details.base ?? (repo === 'owncloud/reva' ? 'main' : 'master'),
     state,
+    createdAt:
+      state === 'open'
+        ? new Date(Date.now() - (details.openDays ?? 2) * DAY_MS).toISOString()
+        : `${details.merged ?? '2026-10-22'}T08:00:00Z`,
     mergedAt: state === 'merged' ? `${details.merged ?? '2026-10-22'}T10:00:00Z` : null,
     // Open PRs keep getting pushes and reviews; merged ones last changed when merged.
     updatedAt:
@@ -255,6 +266,10 @@ function pr(
         : `${details.merged ?? '2026-10-22'}T10:00:00Z`,
     url: `https://github.com/${repo}/pull/${number}`,
     author: details.author ?? 'dev',
+    isDraft: details.draft ?? false,
+    // Merged PRs went through CI and review; closed ones never got a verdict.
+    checks: details.checks ?? (state === 'merged' ? 'passing' : 'none'),
+    review: details.review ?? (state === 'merged' ? 'approved' : 'none'),
     closingIssues: [],
   };
 }
@@ -275,11 +290,18 @@ export const DEMO_PULL_REQUESTS: PullRequest[] = [
   }),
   pr(OCIS, 13273, 'fix(web): [OCISDEV-1601] open the shared folder after login', {
     state: 'open',
+    openDays: 3,
+    checks: 'failing',
+    review: 'changes_requested',
   }),
   pr(OCIS, 13261, 'fix(web): [OCISDEV-1548] save theme settings on first load'),
   pr(OCIS, 13263, 'fix(web): [backport][OCISDEV-1548] save theme settings on first load', {
     base: 'stable-9.0',
     state: 'open',
+    // Waiting for a review for longer than the default limit: "Backport stale".
+    openDays: 12,
+    checks: 'passing',
+    review: 'review_required',
     body: 'backports: https://github.com/owncloud/ocis/pull/13261',
   }),
   {
@@ -311,6 +333,9 @@ export const DEMO_PULL_REQUESTS: PullRequest[] = [
   pr(OCIS, 13262, 'chore(release): [OCISDEV-1594] simplify the release pipeline', {
     base: 'stable-9.0',
     state: 'open',
+    openDays: 2,
+    draft: true,
+    checks: 'pending',
   }),
   pr(OCIS, 13272, 'chore(deps): [OCISDEV-1392] bump reva'),
   pr(REVA, 788, 'fix: [OCISDEV-1392] retry uploads on a busy storage node'),

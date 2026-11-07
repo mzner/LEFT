@@ -1,5 +1,5 @@
 import { parseBackportOf } from './backports';
-import { evaluateFlags, type FlagRule } from './flags';
+import { evaluateFlags, type FlagOptions, type FlagRule } from './flags';
 import { normalizeRepo, parseGitHubUrl, prId } from './github-url';
 import { extractKeys } from './keys';
 import type {
@@ -28,6 +28,8 @@ export interface BuildReportsInput {
   /** Per-repo override of the fixVersion → branch template. */
   branchTemplates?: Record<RepoName, string>;
   rules?: FlagRule[];
+  /** Age limits and the clock for the flag rules; see `FlagOptions` for the defaults. */
+  flagOptions?: Partial<FlagOptions>;
 }
 
 /** A PR with everything the linking needs pre-computed once. */
@@ -69,7 +71,7 @@ export function buildReports(input: BuildReportsInput): TicketReport[] {
       otherRepoLinks: otherRepoLinks(ticket, repos),
       unlinkedIssues: unlinkedIssues(issuesByKey.get(ticket.key) ?? [], prs),
     };
-    return { ...report, flags: evaluateFlags(report, input.rules) };
+    return { ...report, flags: evaluateFlags(report, input.rules, input.flagOptions) };
   });
 }
 

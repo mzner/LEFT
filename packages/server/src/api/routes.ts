@@ -170,6 +170,7 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
       code: codeHostFor(config, session),
       projectKey: config.projectKey,
       branchTemplates: config.branchTemplates,
+      staleBackportDays: config.staleBackportDays,
       cache: session.cache,
     });
     return { service, jira, selection, repos };

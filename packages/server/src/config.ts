@@ -1,5 +1,5 @@
 import type { RepoName } from '@ocis-dashboard/core';
-import { normalizeRepo } from '@ocis-dashboard/core';
+import { DEFAULT_STALE_BACKPORT_DAYS, normalizeRepo } from '@ocis-dashboard/core';
 
 export interface Config {
   port: number;
@@ -11,6 +11,8 @@ export interface Config {
   demo: boolean;
   /** Per-repo fixVersion → branch template, e.g. `release-{major}.{minor}`. */
   branchTemplates: Record<RepoName, string>;
+  /** An open backport older than this many days gets "Backport stale"; 0 turns the flag off. */
+  staleBackportDays: number;
   atlassian: {
     clientId: string;
     clientSecret: string;
@@ -63,6 +65,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     projectKey: optional('JIRA_PROJECT_KEY', 'OCISDEV'),
     demo,
     branchTemplates: parseBranchTemplates(optional('BRANCH_TEMPLATES', '')),
+    staleBackportDays: parseDays(
+      'STALE_BACKPORT_DAYS',
+      optional('STALE_BACKPORT_DAYS', String(DEFAULT_STALE_BACKPORT_DAYS)),
+    ),
     atlassian: {
       clientId: required('ATLASSIAN_CLIENT_ID'),
       clientSecret: required('ATLASSIAN_CLIENT_SECRET'),
@@ -89,6 +95,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
 /** Shorter session secrets only get a warning at startup, so existing setups keep working. */
 export const MIN_SECRET_LENGTH = 32;
+
+/** A whole number of days, 0 or more. */
+export function parseDays(name: string, value: string): number {
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`${name} must be a whole number of days (0 turns it off), not "${value}".`);
+  }
+  return Number(value);
+}
 
 /** Parses `owner/repo=template,owner/other=template`. */
 export function parseBranchTemplates(value: string): Record<RepoName, string> {

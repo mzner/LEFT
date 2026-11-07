@@ -12,6 +12,7 @@ its GitHub PRs, the GitHub issues they close and their backports per
 | `PR open`                | The main PR is not merged yet (warning).                                         |
 | `Backport missing`       | A fixVersion like `Frances - 9.0.0` requires `stable-9.0`, but no PR targets it. |
 | `Backport open`          | The required backport exists but isn't merged (warning).                         |
+| `Backport stale`         | The open backport is older than 7 days, besides `Backport open` (see below).     |
 | `Not linked in Jira`     | The PR belongs to the ticket, but the ticket's Jira links don't list it.         |
 | `No key in PR`           | The PR belongs to the ticket, but its title and branch lack the key.             |
 | `Issue not linked to PR` | A GitHub issue mentions the key, but none of the ticket's PRs is linked to it.   |
@@ -230,7 +231,8 @@ OAuth callback URLs work for both.
   PR**, **Open in Jira**, **Copy PR link** to paste into the ticket's links),
   why each PR was matched, and which PRs only mention the key. `Esc` closes
   open details. Hovering a branch state explains it; hovering a PR number
-  shows why it counts for the ticket.
+  shows why it counts for the ticket and, for an open PR, its
+  [health](#pr-health).
 - **Link in Jira:** see [Linking PRs in Jira](#linking-prs-in-jira).
 - **Progress:** while loading, the status line shows the current step (Jira
   tickets, Jira links, GitHub search, backports) with a count, and the Jira
@@ -261,6 +263,33 @@ hand. Without the scope the dashboard only reads, as before.
 - This is the only thing the dashboard writes. Requests to it must come from
   the dashboard's own page (`PUBLIC_URL`).
 
+### PR health
+
+Open PRs show how healthy they are, so you know what to chase. In **Details**,
+each open PR has small chips:
+
+- **Age:** `Open 12 days` (whole days; `Opened today` for new ones).
+- **Draft** when the PR isn't ready for review.
+- **CI:** `CI passing`, `CI failing` or `CI running`, from the newest commit's
+  checks. Nothing is shown when no checks ran.
+- **Review:** `Approved`, `Changes requested` or `Review required`, from
+  GitHub's review decision. Nothing is shown when the branch doesn't require
+  reviews.
+
+Hovering a PR number in the table shows the same facts on one line. Merged and
+closed PRs show nothing.
+
+**Backport stale:** an open backport that has waited longer than
+`STALE_BACKPORT_DAYS` (default `7`) gets this problem as well as `Backport
+open`. `Backport open` is something to wait for; `Backport stale` is
+something to fix. The age is counted
+in whole days from when the backport PR was opened; with several open PRs for
+a branch, the oldest one counts. Set `STALE_BACKPORT_DAYS=0` to turn the flag
+off, or any number of days to change the limit.
+
+These facts come from the GitHub request the dashboard already makes (a few
+more fields per PR). The sign-in asks for no new permissions.
+
 ### Branch names other than `stable-X.Y`
 
 Set `BRANCH_TEMPLATES` in `.env`, for example
@@ -286,7 +315,9 @@ All with the signed-in user's own tokens, cached per user for 5 minutes.
   exist; per ticket, a search for the key (`repo:owner/name "OCISDEV-1464"`,
   10 searches per request), which returns PRs and issues; PRs known only from
   Jira links, by number; and the backport searches
-  (`repo:owner/name is:pr in:body "13231"`).
+  (`repo:owner/name is:pr in:body "13231"`). Every PR also carries its
+  creation date, draft state, review decision and the newest commit's check
+  state, for [PR health](#pr-health).
 - **GitHub REST:** per stable branch, `compare/master...stable-9.0` for the
   merge base, whose date is used as the date the branch was cut.
 

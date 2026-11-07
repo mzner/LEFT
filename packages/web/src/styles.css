@@ -986,6 +986,37 @@ button:disabled {
   border-left-color: var(--waiting);
 }
 
+.pr-health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 4px 0 0;
+}
+
+.health-chip {
+  padding: 0 7px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 560;
+  color: var(--ink-2);
+}
+
+.health-chip[data-tone='good'] {
+  border-color: var(--merged);
+  color: var(--merged);
+}
+
+.health-chip[data-tone='wait'] {
+  border-color: var(--waiting);
+  color: var(--waiting);
+}
+
+.health-chip[data-tone='bad'] {
+  border-color: var(--missing);
+  color: var(--missing);
+}
+
 .pr-state {
   display: inline-block;
   min-width: 56px;

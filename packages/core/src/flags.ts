@@ -2,8 +2,24 @@ import type { Flag, FlagAction, FlagCode, LinkedPr, Severity, TicketReport } fro
 
 export type FlagContext = Omit<TicketReport, 'flags'>;
 
+export interface FlagOptions {
+  /** The moment ages are measured against. */
+  now: Date;
+  /** An open backport older than this many days is stale; 0 turns the check off. */
+  staleBackportDays: number;
+}
+
+export const DEFAULT_STALE_BACKPORT_DAYS = 7;
+
 /** A flag rule inspects one ticket and returns the problems it finds. Add new checks here. */
-export type FlagRule = (report: FlagContext) => Flag[];
+export type FlagRule = (report: FlagContext, options: FlagOptions) => Flag[];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Whole days since `iso`, never negative. */
+export function ageInDays(iso: string, now: Date): number {
+  return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / DAY_MS));
+}
 
 function flag(code: FlagCode, severity: Severity, message: string, actions?: FlagAction[]): Flag {
   return actions ? { code, severity, message, actions } : { code, severity, message };
@@ -44,23 +60,41 @@ const missingBackport: FlagRule = ({ prs, coverage }) =>
       ),
     );
 
-const backportOpen: FlagRule = ({ prs, coverage }) =>
+/**
+ * An open backport is "not merged yet", and also "stale" once its oldest open
+ * PR has waited longer than the limit.
+ */
+const backportOpen: FlagRule = ({ prs, coverage }, { now, staleBackportDays }) =>
   coverage
     .filter((branch) => branch.required && branch.status === 'open')
-    .map((branch) =>
-      flag(
-        'BACKPORT_OPEN',
-        'warning',
-        `Backport to ${branch.branch} not merged yet (${branch.repo})`,
-        actionFor(
-          prs.find(
-            (l) =>
-              l.pr.repo === branch.repo && l.pr.baseRef === branch.branch && l.pr.state === 'open',
-          ),
-          'Open backport',
+    .flatMap((branch) => {
+      const open = prs
+        .filter(
+          (l) =>
+            l.pr.repo === branch.repo && l.pr.baseRef === branch.branch && l.pr.state === 'open',
+        )
+        .sort((a, b) => a.pr.createdAt.localeCompare(b.pr.createdAt))[0];
+      const days = open ? ageInDays(open.pr.createdAt, now) : 0;
+      const stale = open !== undefined && staleBackportDays > 0 && days > staleBackportDays;
+      return [
+        ...(stale
+          ? [
+              flag(
+                'BACKPORT_STALE',
+                'error',
+                `Backport to ${branch.branch} open for ${days} days (${branch.repo})`,
+                actionFor(open, 'Open backport'),
+              ),
+            ]
+          : []),
+        flag(
+          'BACKPORT_OPEN',
+          'warning',
+          `Backport to ${branch.branch} not merged yet (${branch.repo})`,
+          actionFor(open, 'Open backport'),
         ),
-      ),
-    );
+      ];
+    });
 
 function actionFor(linked: LinkedPr | undefined, label: string): FlagAction[] | undefined {
   return linked ? [{ label, url: linked.pr.url }] : undefined;
@@ -117,6 +151,14 @@ export const defaultFlagRules: FlagRule[] = [
   issueNotLinked,
 ];
 
-export function evaluateFlags(report: FlagContext, rules: FlagRule[] = defaultFlagRules): Flag[] {
-  return rules.flatMap((rule) => rule(report));
+export function evaluateFlags(
+  report: FlagContext,
+  rules: FlagRule[] = defaultFlagRules,
+  options: Partial<FlagOptions> = {},
+): Flag[] {
+  const resolved: FlagOptions = {
+    now: options.now ?? new Date(),
+    staleBackportDays: options.staleBackportDays ?? DEFAULT_STALE_BACKPORT_DAYS,
+  };
+  return rules.flatMap((rule) => rule(report, resolved));
 }
