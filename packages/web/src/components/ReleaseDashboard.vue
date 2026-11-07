@@ -5,8 +5,10 @@ import type {
   ReportSelection,
   Sprint,
   SprintsResponse,
+  VersionsResponse,
 } from '@ocis-dashboard/core';
-import { computed, provide, ref, watch } from 'vue';
+import { computeReadiness } from '@ocis-dashboard/core';
+import { computed, nextTick, provide, ref, watch } from 'vue';
 import { api } from '../api';
 import { dataOr, useAsync } from '../composables/useAsync';
 import { useLocalStorage } from '../composables/useLocalStorage';
@@ -15,6 +17,14 @@ import { JIRA_LINKER } from '../lib/jira-link';
 import { readUrlState, writeUrlState } from '../lib/url-state';
 import { daysAgo, formatRange } from '../lib/format';
 import { applyMarks, markFor, type FixedMarks } from '../lib/marks';
+import {
+  BLOCK_FILTERS,
+  blockFilterKeys,
+  defaultVersion,
+  reasonLabel,
+  releaseDateNote,
+  type BlockFilter,
+} from '../lib/release';
 import {
   assignees,
   branchOptions,
@@ -27,6 +37,7 @@ import {
   type SortKey,
 } from '../lib/view';
 import ErrorBanner from './ErrorBanner.vue';
+import ReadinessBanner from './ReadinessBanner.vue';
 import TicketFilters from './TicketFilters.vue';
 import ReportHeadline from './ReportHeadline.vue';
 import LoadStatus from './LoadStatus.vue';
@@ -52,6 +63,8 @@ const storedBoardId = useLocalStorage<number | null>('boardId', null);
 const fixedMarks = useLocalStorage<FixedMarks>('fixedMarks', {});
 const chosenSprintId = ref<number | null>(null);
 const dates = ref({ from: daysAgo(13), to: daysAgo(0) });
+/** The fixVersion chosen in release mode; null until chosen, then the next release is shown. */
+const chosenVersion = ref<string | null>(null);
 
 // How to filter what was loaded.
 const problem = ref<ProblemFilter>('all');
@@ -60,17 +73,25 @@ const search = ref('');
 /** A preference, so it survives reloads and sprint changes. */
 const sort = useLocalStorage<SortKey>('sort', 'jira');
 const branch = ref('');
+/** Release mode: which blocking tickets the table shows. */
+const blocking = ref<BlockFilter>('');
 
 // A shared or bookmarked link opens the same view: it overrides what the browser remembered.
-const fromUrl = readUrlState(window.location.search, ['all', 'attention', 'marked', ...FLAG_ORDER]);
+const fromUrl = readUrlState(
+  window.location.search,
+  ['all', 'attention', 'marked', ...FLAG_ORDER],
+  BLOCK_FILTERS,
+);
 if (fromUrl.mode) mode.value = fromUrl.mode;
 if (fromUrl.boardId !== undefined) storedBoardId.value = fromUrl.boardId;
 if (fromUrl.sprintId !== undefined) chosenSprintId.value = fromUrl.sprintId;
 if (fromUrl.from) dates.value = { from: fromUrl.from, to: fromUrl.to ?? fromUrl.from };
+if (fromUrl.version) chosenVersion.value = fromUrl.version;
 if (fromUrl.problem) problem.value = fromUrl.problem as ProblemFilter;
 if (fromUrl.assignee) assignee.value = fromUrl.assignee;
 if (fromUrl.search) search.value = fromUrl.search;
 if (fromUrl.branch) branch.value = fromUrl.branch;
+if (fromUrl.blocking) blocking.value = fromUrl.blocking as BlockFilter;
 
 // Boards and sprints.
 const { state: boardsState, reload: reloadBoards } = useAsync<BoardsResponse>('boards', (signal) =>
@@ -107,6 +128,23 @@ const sprintsLoading = computed(
   () => boardsState.value.status === 'loading' || sprintsState.value.status === 'loading',
 );
 
+// Fix versions, only loaded once release mode is used.
+const { state: versionsState, reload: reloadVersions } = useAsync<VersionsResponse>(
+  () => (mode.value === 'release' ? 'versions' : null),
+  (signal) => api.versions(signal),
+);
+const versionList = computed(() => dataOr(versionsState.value, { versions: [] }).versions);
+const version = computed(
+  () =>
+    versionList.value.find((v) => v.name === chosenVersion.value) ??
+    defaultVersion(versionList.value),
+);
+const versionName = computed({
+  get: () => version.value?.name ?? null,
+  set: (name) => (chosenVersion.value = name),
+});
+const versionsLoading = computed(() => versionsState.value.status === 'loading');
+
 // The report.
 const enabledRepos = computed(() => repos.value.filter((r) => r.enabled).map((r) => r.name));
 const request = computed<ReportRequest | null>(() => {
@@ -116,6 +154,9 @@ const request = computed<ReportRequest | null>(() => {
   }
   if (mode.value === 'dates' && dates.value.from) {
     selection = { kind: 'dates', from: dates.value.from, to: dates.value.to || dates.value.from };
+  }
+  if (mode.value === 'release' && version.value) {
+    selection = { kind: 'version', version: version.value.name };
   }
   return selection && enabledRepos.value.length > 0
     ? { selection, repos: enabledRepos.value }
@@ -148,7 +189,10 @@ provide(
 watch(
   () => JSON.stringify(request.value),
   (_now, before) => {
-    if (before !== 'null') branch.value = '';
+    if (before !== 'null') {
+      branch.value = '';
+      blocking.value = '';
+    }
   },
 );
 
@@ -160,7 +204,9 @@ watch(
     sprintId: mode.value === 'sprint' ? (sprint.value?.id ?? undefined) : undefined,
     from: mode.value === 'dates' ? dates.value.from : undefined,
     to: mode.value === 'dates' ? dates.value.to : undefined,
+    version: mode.value === 'release' ? (version.value?.name ?? undefined) : undefined,
     problem: problem.value,
+    blocking: mode.value === 'release' ? blocking.value : undefined,
     assignee: assignee.value,
     search: search.value,
     branch: branch.value,
@@ -181,6 +227,23 @@ const allReports = computed(() =>
   applyMarks(sortReports(data.value?.reports ?? [], sort.value), fixedMarks.value),
 );
 
+/** Go or no-go, from every loaded ticket (never the filtered list); release mode only. */
+const readiness = computed(() => {
+  const targets = data.value?.releaseTargets;
+  if (mode.value !== 'release' || !targets) return undefined;
+  const marked = new Set(
+    allReports.value.filter((r) => r.mark?.state === 'active').map((r) => r.ticket.key),
+  );
+  return computeReadiness(allReports.value, targets, { isMarkedFixed: (key) => marked.has(key) });
+});
+/** Each blocking ticket's reasons, so its row in the table can say why. */
+const blockersByKey = computed(
+  () => new Map(readiness.value?.blocking.map((t) => [t.key, t.blockers]) ?? []),
+);
+const blockingKeys = computed(() =>
+  readiness.value ? blockFilterKeys(readiness.value, blocking.value) : undefined,
+);
+
 function markFixed(key: string) {
   const report = data.value?.reports.find((r) => r.ticket.key === key);
   if (report) fixedMarks.value = { ...fixedMarks.value, [key]: markFor(report) };
@@ -191,15 +254,17 @@ function unmark(key: string) {
   delete rest[key];
   fixedMarks.value = rest;
 }
-const beforeProblem = computed(() =>
-  filterReports(allReports.value, {
+const beforeProblem = computed(() => {
+  const filtered = filterReports(allReports.value, {
     problem: 'all',
     assignee: assignee.value,
     myAccountId: props.me.atlassian.id,
     search: search.value,
     branch: decodeBranchFilter(branch.value),
-  }),
-);
+  });
+  const keys = blockingKeys.value;
+  return keys ? filtered.filter((r) => keys.has(r.ticket.key)) : filtered;
+});
 const shown = computed(() =>
   filterReports(beforeProblem.value, { problem: problem.value, assignee: 'all', search: '' }),
 );
@@ -220,43 +285,72 @@ const filterNote = computed(() => {
     parts.push(`${how} ${filter.branch}`);
   }
   if (search.value.trim()) parts.push(`matching "${search.value.trim()}"`);
+  if (blockingKeys.value && blocking.value && data.value?.releaseTargets) {
+    parts.push(
+      blocking.value === 'all'
+        ? 'blocking the release'
+        : `blocking the release (${reasonLabel(blocking.value, data.value.releaseTargets)})`,
+    );
+  }
   return parts.length > 0 ? parts.join(', ') : undefined;
 });
 
 function clearFilters() {
+  blocking.value = '';
   assignee.value = 'all';
   branch.value = '';
   search.value = '';
   problem.value = 'all';
 }
 
-const title = computed(() =>
-  mode.value === 'sprint'
-    ? (sprint.value?.name ?? 'Sprint')
-    : `Updated ${formatRange(dates.value.from, dates.value.to || dates.value.from)}`,
-);
-const subtitle = computed(() =>
-  mode.value === 'sprint' && sprint.value
-    ? `${formatRange(sprint.value.startDate, sprint.value.endDate)}, ${SPRINT_STATE_TEXT[sprint.value.state]}`
-    : undefined,
-);
+const title = computed(() => {
+  if (mode.value === 'sprint') return sprint.value?.name ?? 'Sprint';
+  if (mode.value === 'release') return version.value?.name ?? 'Release';
+  return `Updated ${formatRange(dates.value.from, dates.value.to || dates.value.from)}`;
+});
+const subtitle = computed(() => {
+  if (mode.value === 'sprint' && sprint.value) {
+    return `${formatRange(sprint.value.startDate, sprint.value.endDate)}, ${SPRINT_STATE_TEXT[sprint.value.state]}`;
+  }
+  if (mode.value === 'release' && version.value) return releaseDateNote(version.value);
+  return undefined;
+});
 
 const setupError = computed(() => {
   if (boardsState.value.status === 'error')
     return { error: boardsState.value.error, retry: reloadBoards };
   if (sprintsState.value.status === 'error')
     return { error: sprintsState.value.error, retry: reloadSprints };
+  if (versionsState.value.status === 'error')
+    return { error: versionsState.value.error, retry: reloadVersions };
   return undefined;
 });
 const preparingSprints = computed(
   () => mode.value === 'sprint' && !sprint.value && sprintsLoading.value,
 );
+const preparingVersions = computed(
+  () => mode.value === 'release' && !version.value && versionsLoading.value,
+);
 const emptyText = computed(() => {
   if (allReports.value.length > 0) return 'No ticket matches these filters.';
+  if (mode.value === 'release') return 'This version has no tickets yet.';
   return mode.value === 'sprint'
     ? 'This sprint has no tickets yet.'
     : 'No tickets were updated in this period.';
 });
+
+/**
+ * After picking blockers in the verdict, bring the table into view if it is
+ * out of sight. The scroll stops at the "Showing N of M" note, so what the
+ * table is filtered by, and how to clear it, stays on screen.
+ */
+async function revealTable() {
+  await nextTick();
+  const toolbar = document.querySelector('.table-toolbar');
+  if (!toolbar || toolbar.getBoundingClientRect().top <= window.innerHeight * 0.6) return;
+  const target = document.querySelector('.headline .filter-note') ?? toolbar;
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 function addRepo(name: string) {
   repos.value = withRepo(repos.value, name);
@@ -271,9 +365,12 @@ function addRepo(name: string) {
         v-model:board-id="boardId"
         v-model:sprint-id="sprintId"
         v-model:dates="dates"
+        v-model:version="versionName"
         :boards="boardList"
         :sprints="sprintList"
         :sprints-loading="sprintsLoading"
+        :versions="versionList"
+        :versions-loading="versionsLoading"
       />
       <RepoPicker v-model="repos" />
     </section>
@@ -288,10 +385,18 @@ function addRepo(name: string) {
     >
       This board has no sprints. Pick another board, or choose by dates.
     </p>
+    <p
+      v-if="mode === 'release' && versionsState.status === 'ready' && versionList.length === 0"
+      class="empty"
+    >
+      This project has no fix versions in Jira. Choose by sprint or dates instead.
+    </p>
 
-    <template v-if="!request && preparingSprints">
+    <template v-if="!request && (preparingSprints || preparingVersions)">
       <div class="load-status loading" role="status">
-        <p>Loading boards and sprints from Jira</p>
+        <p>
+          {{ preparingVersions ? 'Loading fix versions' : 'Loading boards and sprints' }} from Jira
+        </p>
       </div>
       <SkeletonTable />
     </template>
@@ -305,7 +410,18 @@ function addRepo(name: string) {
         :total="allReports.length"
         :filter-note="filterNote"
         @clear-filters="clearFilters"
-      />
+      >
+        <template v-if="readiness && data?.releaseTargets && version" #verdict>
+          <ReadinessBanner
+            v-model:filter="blocking"
+            :readiness="readiness"
+            :targets="data.releaseTargets"
+            :version="version.name"
+            :stale="report.status === 'loading'"
+            @filtered="revealTable"
+          />
+        </template>
+      </ReportHeadline>
       <!-- Filters sit with the table they change; the controls above choose what to load. -->
       <div class="table-toolbar">
         <TicketFilters
@@ -327,12 +443,14 @@ function addRepo(name: string) {
           :reports="shown"
           :repos="data.repos"
           :sort="sort"
+          :blockers="readiness ? blockersByKey : undefined"
           :stale="report.status === 'loading'"
           @add-repo="addRepo"
           @mark-fixed="markFixed"
           @unmark="unmark"
         />
-        <p v-else class="empty">{{ emptyText }}</p>
+        <!-- An empty release says so in its verdict already. -->
+        <p v-else-if="readiness?.verdict !== 'empty'" class="empty">{{ emptyText }}</p>
       </template>
       <PendingTable
         v-else-if="report.status === 'loading' && report.tickets"

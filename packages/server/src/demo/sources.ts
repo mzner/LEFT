@@ -7,6 +7,7 @@ import {
   DEMO_PULL_REQUESTS,
   DEMO_REPOS,
   DEMO_SPRINTS,
+  DEMO_VERSIONS,
   DEMO_TICKETS,
   type DemoTicket,
 } from './fixtures';
@@ -37,6 +38,14 @@ export const demoJira: JiraSource = {
   async ticketsUpdatedBetween(from, to) {
     await sleep(400);
     return DEMO_TICKETS.filter((t) => t.updated >= from && t.updated <= to).map(asTicket);
+  },
+  async listVersions() {
+    await sleep(150);
+    return DEMO_VERSIONS;
+  },
+  async ticketsInVersion(version) {
+    await sleep(400);
+    return DEMO_TICKETS.filter((t) => t.fixVersions.includes(version)).map(asTicket);
   },
   async remoteLinkUrls(key) {
     await sleep(120);

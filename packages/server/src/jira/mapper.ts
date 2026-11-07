@@ -1,4 +1,4 @@
-import type { Sprint, SprintState, StatusCategory, Ticket } from '@ocis-dashboard/core';
+import type { Sprint, SprintState, StatusCategory, Ticket, Version } from '@ocis-dashboard/core';
 
 /** The subset of Jira's issue JSON we request. */
 export interface JiraIssue {
@@ -12,6 +12,23 @@ export interface JiraIssue {
     created?: string;
     updated?: string;
   };
+}
+
+/** Shape of `/rest/api/3/project/{key}/versions` entries. */
+export interface JiraVersion {
+  id: string;
+  name: string;
+  released?: boolean;
+  archived?: boolean;
+  releaseDate?: string;
+}
+
+export function toVersions(versions: JiraVersion[]): Version[] {
+  return versions
+    .filter((version) => !version.archived)
+    .map(({ id, name, released = false, releaseDate }) =>
+      releaseDate ? { id, name, released, releaseDate } : { id, name, released },
+    );
 }
 
 export interface JiraSprint {

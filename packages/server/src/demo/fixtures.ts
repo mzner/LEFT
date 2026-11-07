@@ -9,11 +9,21 @@ import type {
   PullRequest,
   Sprint,
   Ticket,
+  Version,
 } from '@ocis-dashboard/core';
 
 export const DEMO_BOARDS: Board[] = [
   { id: 1, name: 'oCIS Scrum' },
   { id: 2, name: 'oCIS QA' },
+];
+
+/** Jira's order: oldest first. Ghez ships from master, so it has no number. */
+export const DEMO_VERSIONS: Version[] = [
+  { id: '10301', name: 'Curie - 8.0.0', released: true, releaseDate: '2025-05-12' },
+  { id: '10302', name: 'Deledda - 8.1.0', released: true, releaseDate: '2026-05-28' },
+  { id: '10303', name: 'Curie S9 - 8.0.10', released: false, releaseDate: '2026-11-12' },
+  { id: '10304', name: 'Frances - 9.0.0', released: false, releaseDate: '2026-11-19' },
+  { id: '10305', name: 'Ghez', released: false },
 ];
 
 export const DEMO_SPRINTS: Record<number, Sprint[]> = {

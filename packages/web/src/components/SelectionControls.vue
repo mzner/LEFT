@@ -1,21 +1,28 @@
 <script lang="ts">
-export type SelectionMode = 'sprint' | 'dates';
+export type SelectionMode = 'sprint' | 'dates' | 'release';
 </script>
 
 <script setup lang="ts">
-import type { Board, Sprint } from '@ocis-dashboard/core';
+import type { Board, Sprint, Version } from '@ocis-dashboard/core';
 import { computed } from 'vue';
 import { formatRange } from '../lib/format';
+import { groupVersions } from '../lib/release';
 
 const props = defineProps<{
   boards: Board[];
   sprints: Sprint[];
   sprintsLoading: boolean;
+  versions: Version[];
+  versionsLoading: boolean;
 }>();
 const mode = defineModel<SelectionMode>('mode', { required: true });
 const boardId = defineModel<number | null>('boardId', { required: true });
 const sprintId = defineModel<number | null>('sprintId', { required: true });
 const dates = defineModel<{ from: string; to: string }>('dates', { required: true });
+/** A fixVersion name, in release mode. */
+const version = defineModel<string | null>('version', { required: true });
+
+const versionGroups = computed(() => groupVersions(props.versions));
 
 const sprintGroups = computed(() =>
   (
@@ -33,6 +40,13 @@ const sprintGroups = computed(() =>
     <div class="segmented" role="group" aria-label="Choose tickets by">
       <button :aria-pressed="mode === 'sprint'" @click="mode = 'sprint'">Sprint</button>
       <button :aria-pressed="mode === 'dates'" @click="mode = 'dates'">Dates</button>
+      <button
+        :aria-pressed="mode === 'release'"
+        title="Every ticket of one fix version, with a go/no-go verdict"
+        @click="mode = 'release'"
+      >
+        Release
+      </button>
     </div>
 
     <template v-if="mode === 'sprint'">
@@ -59,6 +73,22 @@ const sprintGroups = computed(() =>
         </optgroup>
       </select>
     </template>
+
+    <select
+      v-else-if="mode === 'release'"
+      aria-label="Fix version"
+      :value="version ?? ''"
+      :disabled="versionsLoading || versions.length === 0"
+      @change="version = ($event.target as HTMLSelectElement).value"
+    >
+      <option v-if="versionsLoading" value="">Loading versions…</option>
+      <option v-else-if="versions.length === 0" value="">No versions in this project</option>
+      <optgroup v-for="[label, group] in versionGroups" :key="label" :label="label">
+        <option v-for="v in group" :key="v.id" :value="v.name">
+          {{ v.name }}<template v-if="v.releaseDate">, {{ formatRange(v.releaseDate) }}</template>
+        </option>
+      </optgroup>
+    </select>
 
     <span v-else class="date-range">
       <label>

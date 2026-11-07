@@ -7,6 +7,7 @@ import type {
   ReportResponse,
   ReportStreamEvent,
   SprintsResponse,
+  VersionsResponse,
 } from '@ocis-dashboard/core';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Config } from '../config';
@@ -60,6 +61,12 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
       return { sprints };
     },
   );
+
+  app.get('/api/versions', async (request): Promise<VersionsResponse> => {
+    const jira = await jiraFor(config, request.session);
+    const versions = await request.session.cache.getOrLoad('versions', () => jira.listVersions());
+    return { versions };
+  });
 
   /** Plain JSON, handy for scripts. */
   app.get<{ Querystring: ReportQuery }>(

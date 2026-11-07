@@ -1,8 +1,16 @@
-import type { Board, Sprint, Ticket } from '@ocis-dashboard/core';
+import type { Board, Sprint, Ticket, Version } from '@ocis-dashboard/core';
 import { jiraApiBase } from '../auth/atlassian';
 import { requestJson, type RequestOptions } from '../http';
-import type { RemoteLinkWriter, SprintSource, TicketSource } from '../report/ports';
-import { sortSprints, toSprint, toTicket, type JiraIssue, type JiraSprint } from './mapper';
+import type { JiraSource } from '../report/ports';
+import {
+  sortSprints,
+  toSprint,
+  toTicket,
+  toVersions,
+  type JiraIssue,
+  type JiraSprint,
+  type JiraVersion,
+} from './mapper';
 
 const ISSUE_FIELDS = [
   'summary',
@@ -46,7 +54,7 @@ export interface JiraClientOptions {
  * Jira Cloud client acting as the signed-in user. It only reads, except for
  * `addRemoteLink`, which needs the `write:jira-work` scope.
  */
-export class JiraClient implements TicketSource, SprintSource, RemoteLinkWriter {
+export class JiraClient implements JiraSource {
   private readonly base: string;
 
   constructor(private readonly options: JiraClientOptions) {
@@ -88,11 +96,28 @@ export class JiraClient implements TicketSource, SprintSource, RemoteLinkWriter 
     return issues.map((issue) => toTicket(issue, this.options.siteUrl));
   }
 
+  async listVersions(): Promise<Version[]> {
+    const versions = await this.call<JiraVersion[]>(
+      `/rest/api/3/project/${encodeURIComponent(this.options.projectKey)}/versions`,
+    );
+    return toVersions(versions);
+  }
+
   /** Tickets updated between the inclusive `YYYY-MM-DD` dates. */
-  async ticketsUpdatedBetween(from: string, to: string): Promise<Ticket[]> {
-    const jql =
+  ticketsUpdatedBetween(from: string, to: string): Promise<Ticket[]> {
+    return this.search(
       `project = "${this.options.projectKey}" AND updated >= "${from}" ` +
-      `AND updated < "${nextDay(to)}" ORDER BY updated DESC`;
+        `AND updated < "${nextDay(to)}" ORDER BY updated DESC`,
+    );
+  }
+
+  ticketsInVersion(version: string): Promise<Ticket[]> {
+    return this.search(
+      `project = "${this.options.projectKey}" AND fixVersion = ${jqlString(version)} ORDER BY key ASC`,
+    );
+  }
+
+  private async search(jql: string): Promise<Ticket[]> {
     const issues: JiraIssue[] = [];
     let nextPageToken: string | undefined;
     do {
@@ -139,6 +164,11 @@ export class JiraClient implements TicketSource, SprintSource, RemoteLinkWriter 
       headers: { Authorization: `Bearer ${this.options.accessToken}`, ...options.headers },
     });
   }
+}
+
+/** A JQL string literal; version names are free text, so quotes and backslashes are escaped. */
+export function jqlString(value: string): string {
+  return `"${value.replace(/["\\]/g, (char) => `\\${char}`)}"`;
 }
 
 function nextDay(date: string): string {

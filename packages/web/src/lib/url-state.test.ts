@@ -25,6 +25,12 @@ describe('URL state', () => {
     });
   });
 
+  it('round-trips a release view, whatever the version is called', () => {
+    const version = 'Frances - 9.0.0 & "hotfix"';
+    const query = writeUrlState({ mode: 'release', version });
+    expect(readUrlState(query, PROBLEMS)).toMatchObject({ mode: 'release', version });
+  });
+
   it('leaves defaults out of the URL', () => {
     expect(
       writeUrlState({

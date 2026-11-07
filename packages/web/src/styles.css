@@ -261,6 +261,80 @@ button:disabled {
   border-radius: 0 var(--radius) var(--radius) 0;
 }
 
+/* ---- Release readiness ------------------------------------------------- */
+
+.readiness {
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+  border-left: 4px solid var(--rule-strong);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--surface);
+  transition: opacity 200ms;
+}
+
+.readiness[data-verdict='go'] {
+  border-left-color: var(--merged);
+}
+
+.readiness[data-verdict='no-go'] {
+  border-left-color: var(--missing);
+  background: var(--missing-tint);
+}
+
+.readiness[data-stale='true'] {
+  opacity: 0.6;
+}
+
+.readiness-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* The word carries the verdict; colour only repeats it. */
+.verdict-badge {
+  flex: none;
+  min-width: 84px;
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  background: var(--ink-3);
+  color: #fff;
+  font-size: var(--text-l);
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.readiness[data-verdict='go'] .verdict-badge {
+  background: var(--merged);
+}
+
+.readiness[data-verdict='no-go'] .verdict-badge {
+  background: var(--missing);
+}
+
+.verdict-text {
+  margin: 2px 0 2px;
+  font-size: var(--text-l);
+  font-weight: 600;
+}
+
+.readiness .hint {
+  margin: 0;
+}
+
+.readiness-reasons {
+  margin: 12px 0 4px;
+}
+
+/* In release mode, the reason a row is in the list of blockers. */
+.row-blockers {
+  margin: 6px 0 0;
+  color: var(--missing);
+  font-size: var(--text-s);
+  font-weight: 560;
+}
+
 .empty {
   margin: 32px 0;
   color: var(--ink-2);
@@ -469,6 +543,13 @@ button:disabled {
   font-weight: 820;
   letter-spacing: -0.035em;
   line-height: 1.05;
+}
+
+/* Under a verdict, the problem count is detail, not the headline. */
+.headline-sentence[data-secondary='true'] {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .filter-note {

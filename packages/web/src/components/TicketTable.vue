@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FlagCode, RepoInfo } from '@ocis-dashboard/core';
+import type { Blocker, FlagCode, RepoInfo } from '@ocis-dashboard/core';
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { branchRows } from '../lib/branches';
 import { formatRange } from '../lib/format';
@@ -24,6 +24,8 @@ const props = defineProps<{
   sort: SortKey;
   /** Data is being refreshed; dim it. */
   stale: boolean;
+  /** Release mode: why each blocking ticket blocks, by key. */
+  blockers?: Map<string, Blocker[]>;
 }>();
 defineEmits<{ addRepo: [repo: string]; markFixed: [key: string]; unmark: [key: string] }>();
 
@@ -156,6 +158,15 @@ function severity(report: MarkedReport): 'fix' | 'wait' | 'ok' {
                   {{ sortDate(report, sort) ? formatRange(sortDate(report, sort)) : '—' }}
                 </span>
               </span>
+              <p v-if="blockers?.get(report.ticket.key)" class="row-blockers">
+                Blocks the release:
+                {{
+                  blockers
+                    .get(report.ticket.key)!
+                    .map((b) => b.text)
+                    .join(' · ')
+                }}
+              </p>
             </td>
             <td class="branches-cell">
               <BranchList :rows="branchRows(report, repos)" @more="expand(report.ticket.key)" />

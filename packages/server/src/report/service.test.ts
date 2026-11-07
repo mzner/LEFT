@@ -59,6 +59,7 @@ function setup() {
   const tickets: TicketSource = {
     sprintTickets: vi.fn(async () => [ticket]),
     ticketsUpdatedBetween: vi.fn(async () => [ticket]),
+    ticketsInVersion: vi.fn(async () => [ticket]),
     remoteLinkUrls: vi.fn(async () => [
       `https://github.com/${OCIS}/pull/13231`,
       `https://github.com/${OCIS}/pull/99`,

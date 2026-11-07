@@ -1,6 +1,7 @@
 import {
   backportBranchesFor,
   buildReports,
+  releaseTargets,
   parseGitHubUrl,
   type PullRequest,
   type RepoInfo,
@@ -77,7 +78,11 @@ export class ReportService {
     const links = tracker('links', loaded.length, onProgress);
     const tickets = await this.withRemoteLinks(loaded, links.advance, check);
     check();
-    const repoInfos = await Promise.all(repos.map((repo) => this.repoInfo(repo, tickets)));
+    // A release's own branch is always asked about, even before it has tickets.
+    const versions = selection.kind === 'version' ? [selection.version] : [];
+    const repoInfos = await Promise.all(
+      repos.map((repo) => this.repoInfo(repo, tickets, versions)),
+    );
 
     // 1. PRs that mention a ticket key, plus PRs only known from Jira links.
     const keyQueries = repoInfos.flatMap((repo) =>
@@ -112,16 +117,28 @@ export class ReportService {
         branchTemplates: this.deps.branchTemplates,
         flagOptions: { staleBackportDays: this.deps.staleBackportDays },
       }),
+      ...(selection.kind === 'version' && {
+        releaseTargets: releaseTargets(selection.version, repoInfos, this.deps.branchTemplates),
+      }),
     };
   }
 
   private loadTickets(selection: ReportSelection): Promise<Ticket[]> {
     const source = this.deps.tickets;
-    return selection.kind === 'sprint'
-      ? this.cached(`sprint:${selection.sprintId}`, () => source.sprintTickets(selection.sprintId))
-      : this.cached(`dates:${selection.from}:${selection.to}`, () =>
+    switch (selection.kind) {
+      case 'sprint':
+        return this.cached(`sprint:${selection.sprintId}`, () =>
+          source.sprintTickets(selection.sprintId),
+        );
+      case 'dates':
+        return this.cached(`dates:${selection.from}:${selection.to}`, () =>
           source.ticketsUpdatedBetween(selection.from, selection.to),
         );
+      case 'version':
+        return this.cached(`version:${selection.version}`, () =>
+          source.ticketsInVersion(selection.version),
+        );
+    }
   }
 
   private withRemoteLinks(
@@ -139,9 +156,13 @@ export class ReportService {
     });
   }
 
-  private repoInfo(repo: RepoName, tickets: Ticket[]): Promise<RepoInfo> {
+  private repoInfo(repo: RepoName, tickets: Ticket[], versions: string[]): Promise<RepoInfo> {
     const template = this.deps.branchTemplates[repo];
-    const branches = unique(tickets.flatMap((t) => backportBranchesFor(t.fixVersions, template)));
+    const branches = unique(
+      [...versions, ...tickets.flatMap((t) => t.fixVersions)].flatMap((v) =>
+        backportBranchesFor([v], template),
+      ),
+    );
     return this.cached(`repo:${repo}:${branches.join(',')}`, () =>
       this.deps.code.repoInfo(repo, branches),
     );

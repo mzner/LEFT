@@ -3,6 +3,17 @@ import { AppError } from '../errors';
 import { parseRepos, parseSelection } from './selection';
 
 describe('parseSelection', () => {
+  it('takes a version first, trimmed', () => {
+    expect(parseSelection({ version: ' Frances - 9.0.0 ', sprintId: '27' })).toEqual({
+      kind: 'version',
+      version: 'Frances - 9.0.0',
+    });
+  });
+
+  it('rejects an absurdly long version name', () => {
+    expect(() => parseSelection({ version: 'x'.repeat(256) })).toThrow(AppError);
+  });
+
   it('prefers a sprint', () => {
     expect(parseSelection({ sprintId: '27', from: '2026-10-01' })).toEqual({
       kind: 'sprint',

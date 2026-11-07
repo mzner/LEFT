@@ -149,10 +149,11 @@ OAuth callback URLs work for both.
 
 ## Using it
 
-- **Choose tickets by sprint or by dates.** Sprint mode starts on the current
-  sprint. If the project has several scrum boards, a board picker appears. In
-  dates mode, tickets updated in Jira within the range are shown; use **Single
-  day** for one date.
+- **Choose tickets by sprint, by dates or by release.** Sprint mode starts on
+  the current sprint. If the project has several scrum boards, a board picker
+  appears. In dates mode, tickets updated in Jira within the range are shown;
+  use **Single day** for one date. Release mode shows every ticket of one fix
+  version with a go/no-go verdict; see [Release readiness](#release-readiness).
 - **Repositories:** `owncloud/ocis` is the default. Use **Add repository** for
   others (e.g. `owncloud/reva`), and click a repo to leave it out without
   removing it. The list is saved in your browser.
@@ -242,6 +243,39 @@ OAuth callback URLs work for both.
   (follows your OS), **Light** and **Dark**. The choice is saved in your
   browser.
 
+### Release readiness
+
+**Release** (next to Sprint and Dates) loads every ticket whose fix version is
+the chosen one, in any status, and says whether the version can ship. The
+picker lists unreleased versions first, the next release date at the top, then
+released ones; archived versions are left out. It opens on the next release.
+
+The verdict is **Go** when every ticket is done in Jira and its fix is where
+the version ships from, and **No-go** otherwise. Under a No-go, the blocking
+tickets are counted by reason, e.g. `Not done in Jira 87` · `Not on stable-9.0
+21` · `No PR 12` (a ticket can count under several). Click a count, or **All
+blockers**, to list those tickets in the table; the headline then says what is
+shown, with **Clear filters**, and each listed row says why it blocks. Click
+the count again to show every ticket.
+
+- **Where a version ships from:** its release branch, e.g. `stable-9.0` for
+  `Frances - 9.0.0` (or what `BRANCH_TEMPLATES` names for that repo). If the
+  branch isn't cut yet, or the version has no number (`Ghez`), the repo's
+  default branch is checked instead, and the verdict says so.
+- **What blocks:** a ticket that isn't done in Jira; a ticket without a PR (PRs
+  closed without merging don't count); a fix that isn't merged on that branch,
+  or isn't already in it from before the branch was cut. Only repos the ticket
+  has PRs in are checked.
+- **What doesn't block:** missing Jira links, keys in PRs and linked issues are
+  "things to tidy", counted under the verdict. Backports a ticket needs for
+  _another_ fix version don't count for this one; the table still shows them.
+- **Marked fixed** tickets don't block on their PRs, but still block if Jira
+  says they aren't done.
+- The verdict always covers every ticket of the version. Filters only narrow
+  the table.
+- The address bar holds the version and the chosen blockers
+  (`?mode=release&version=…&blocking=not-done`), so a link opens the same view.
+
 ### Linking PRs in Jira
 
 With `write:jira-work` in `ATLASSIAN_SCOPES` (and in the Atlassian console),
@@ -308,7 +342,9 @@ pnpm format        # prettier --write
 All with the signed-in user's own tokens, cached per user for 5 minutes.
 
 - **Jira:** the sprint's tickets (`/rest/agile/1.0/sprint/{id}/issue`) or the
-  tickets updated in the dates (`/rest/api/3/search/jql`), then each ticket's
+  tickets updated in the dates, or with the fix version (both
+  `/rest/api/3/search/jql`), and the project's versions
+  (`/rest/api/3/project/{key}/versions`, for the release picker), then each ticket's
   web links (`/rest/api/3/issue/{key}/remotelink`). **Link in Jira** posts to
   the same address.
 - **GitHub GraphQL:** per repo, the default branch and which stable branches
@@ -326,7 +362,8 @@ All with the signed-in user's own tokens, cached per user for 5 minutes.
 ```
 packages/
   core/    Pure domain logic, with no I/O: key extraction, backport parsing,
-           fixVersion → branch, PR ↔ ticket linking, flag rules, API types.
+           fixVersion → branch, PR ↔ ticket linking, flag rules, release
+           readiness, API types.
   server/  Fastify. auth/ (OAuth providers), jira/ and github/ (API clients
            behind the ports in report/ports.ts), demo/ (sample-data sources),
            report/service.ts (orchestration, caching and progress), api/
@@ -334,7 +371,7 @@ packages/
   web/     Vite + Vue 3 (<script setup>, TypeScript). components/ (SFCs),
            composables/ (useReport streams progress, useTheme), lib/ (pure
            functions: filters, sorting, branch list, progress text, fixed marks,
-           URL state, keyboard shortcuts).
+           URL state, keyboard shortcuts, release picker).
 ```
 
 The UI uses one typeface, Recursive (bundled, no external requests). Its mono

@@ -5,6 +5,7 @@ import type {
   RepoInfo,
   RepoName,
   Sprint,
+  Version,
   Ticket,
 } from '@ocis-dashboard/core';
 
@@ -18,6 +19,8 @@ export interface SearchHits {
 export interface TicketSource {
   sprintTickets(sprintId: number): Promise<Ticket[]>;
   ticketsUpdatedBetween(from: string, to: string): Promise<Ticket[]>;
+  /** Every ticket with this fixVersion (by name), in any status. */
+  ticketsInVersion(version: string): Promise<Ticket[]>;
   remoteLinkUrls(issueKey: string): Promise<string[]>;
 }
 
@@ -39,8 +42,14 @@ export interface SprintSource {
   listSprints(boardId: number): Promise<Sprint[]>;
 }
 
+/** The project's fixVersions (Jira). */
+export interface VersionSource {
+  /** Unarchived versions, in Jira's order. */
+  listVersions(): Promise<Version[]>;
+}
+
 /** Everything the dashboard does with Jira: reads, and adding web links. */
-export type JiraSource = TicketSource & SprintSource & RemoteLinkWriter;
+export type JiraSource = TicketSource & SprintSource & VersionSource & RemoteLinkWriter;
 
 /** Where PRs come from (GitHub). */
 export interface CodeHost {

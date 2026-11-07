@@ -11,6 +11,7 @@ import type {
   ReportStreamEvent,
   Ticket,
   SprintsResponse,
+  VersionsResponse,
 } from '@ocis-dashboard/core';
 
 export type Provider = 'atlassian' | 'github';
@@ -41,6 +42,8 @@ function reportParams(selection: ReportSelection, repos: RepoName[], refresh: bo
   const params = new URLSearchParams({ repos: repos.join(',') });
   if (selection.kind === 'sprint') {
     params.set('sprintId', String(selection.sprintId));
+  } else if (selection.kind === 'version') {
+    params.set('version', selection.version);
   } else {
     params.set('from', selection.from);
     params.set('to', selection.to);
@@ -61,6 +64,8 @@ export const api = {
   me: (signal?: AbortSignal) => getJson<MeResponse>('/api/me', signal),
 
   boards: (signal?: AbortSignal) => getJson<BoardsResponse>('/api/boards', signal),
+
+  versions: (signal?: AbortSignal) => getJson<VersionsResponse>('/api/versions', signal),
 
   sprints: (boardId: number, signal?: AbortSignal) =>
     getJson<SprintsResponse>(`/api/sprints?boardId=${boardId}`, signal),

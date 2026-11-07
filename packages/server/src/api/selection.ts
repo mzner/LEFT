@@ -10,6 +10,8 @@ export interface ReportQuery {
   sprintId?: string;
   from?: string;
   to?: string;
+  /** A fixVersion name. */
+  version?: string;
   /** Comma-separated `owner/name` list. */
   repos?: string;
   refresh?: string;
@@ -20,7 +22,14 @@ const MAX_REPOS = 10;
 
 const badRequest = (message: string) => new AppError(400, 'bad_request', message);
 
+const MAX_VERSION_LENGTH = 255;
+
 export function parseSelection(query: ReportQuery): ReportSelection {
+  const version = query.version?.trim();
+  if (version) {
+    if (version.length > MAX_VERSION_LENGTH) throw badRequest('That version name is too long.');
+    return { kind: 'version', version };
+  }
   if (query.sprintId) {
     const sprintId = Number(query.sprintId);
     if (!Number.isInteger(sprintId) || sprintId <= 0) throw badRequest('Invalid sprintId.');
@@ -28,7 +37,7 @@ export function parseSelection(query: ReportQuery): ReportSelection {
   }
   const { from, to = from } = query;
   if (!from || !to || !DATE.test(from) || !DATE.test(to)) {
-    throw badRequest('Pass either sprintId or from (and optionally to) as YYYY-MM-DD.');
+    throw badRequest('Pass a version, a sprintId, or from (and optionally to) as YYYY-MM-DD.');
   }
   if (from > to) throw badRequest('"from" must not be after "to".');
   return { kind: 'dates', from, to };

@@ -46,8 +46,10 @@ function choose(value: ProblemFilter) {
       <h1>{{ title }}</h1>
       <span v-if="subtitle" class="headline-subtitle">{{ subtitle }}</span>
     </div>
+    <!-- E.g. a release's go/no-go: it comes first, and the problem count steps back. -->
+    <slot name="verdict" />
     <template v-if="reports">
-      <p class="headline-sentence">{{ sentence }}</p>
+      <p class="headline-sentence" :data-secondary="!!$slots.verdict">{{ sentence }}</p>
       <p v-if="filterNote" class="filter-note">
         Showing {{ reports.length }} of {{ plural(total, 'ticket') }}: {{ filterNote }}.
         <button class="inline-button" @click="$emit('clearFilters')">Clear filters</button>

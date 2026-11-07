@@ -1,4 +1,5 @@
 /** Contract between server and web. */
+import type { ReleaseTarget } from './readiness';
 import type { RepoInfo, Ticket, TicketReport } from './types';
 
 export interface ProviderStatus {
@@ -51,16 +52,34 @@ export interface SprintsResponse {
   sprints: Sprint[];
 }
 
+/** A Jira fixVersion of the project, e.g. "Frances - 9.0.0". */
+export interface Version {
+  id: string;
+  name: string;
+  released: boolean;
+  /** `YYYY-MM-DD`, if Jira has one. */
+  releaseDate?: string;
+}
+
+export interface VersionsResponse {
+  /** Unarchived versions in Jira's order (oldest first). */
+  versions: Version[];
+}
+
 export type ReportSelection =
   | { kind: 'sprint'; sprintId: number }
   /** Inclusive `YYYY-MM-DD` dates; `from === to` for a single day. */
-  | { kind: 'dates'; from: string; to: string };
+  | { kind: 'dates'; from: string; to: string }
+  /** Every ticket with this fixVersion, by name. */
+  | { kind: 'version'; version: string };
 
 export interface ReportResponse {
   generatedAt: string;
   /** The selected repos, in the order they were requested. */
   repos: RepoInfo[];
   reports: TicketReport[];
+  /** For a version selection: the branch each repo ships that version from. */
+  releaseTargets?: ReleaseTarget[];
 }
 
 /** The steps of building a report, in order. */
