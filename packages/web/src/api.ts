@@ -1,6 +1,8 @@
 import type {
   ApiError,
   BoardsResponse,
+  JiraLinkRequest,
+  JiraLinkResponse,
   MeResponse,
   RepoName,
   ReportProgress,
@@ -95,6 +97,23 @@ export const api = {
       }
     }
     throw new Error('The connection to the server closed before the report was ready. Try again.');
+  },
+
+  /** Adds the PR to the ticket as a Jira web link; the server checks it against this selection's report. */
+  async linkInJira(
+    selection: ReportSelection,
+    repos: RepoName[],
+    link: JiraLinkRequest,
+  ): Promise<JiraLinkResponse> {
+    const params = reportParams(selection, repos, false);
+    const response = await fetch(`/api/report/jira-link?${params}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(link),
+    });
+    if (!response.ok) throw await errorFrom(response);
+    return (await response.json()) as JiraLinkResponse;
   },
 
   async logout() {

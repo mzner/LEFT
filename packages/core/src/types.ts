@@ -123,6 +123,11 @@ export interface FlagAction {
   url: string;
   /** Copy the URL instead of opening it (e.g. a PR link to paste into Jira). */
   copy?: boolean;
+  /**
+   * Add the URL (a PR) to the ticket as a Jira web link. The web app shows it
+   * only when the server is allowed to write to Jira (`MeResponse.canLinkInJira`).
+   */
+  jiraLink?: boolean;
 }
 
 export interface Flag {

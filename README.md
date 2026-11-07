@@ -17,7 +17,8 @@ its GitHub PRs, the GitHub issues they close and their backports per
 | `Issue not linked to PR` | A GitHub issue mentions the key, but none of the ticket's PRs is linked to it.   |
 
 Everyone signs in with their **own** Atlassian and GitHub accounts and sees only
-what those accounts can see. Nothing is stored: links are worked out on every
+what those accounts can see. The dashboard only reads, unless you turn on
+[Link in Jira](#linking-prs-in-jira). Nothing is stored: links are worked out on every
 request, and results are cached in memory for 5 minutes per user.
 
 ## How tickets and PRs are matched
@@ -107,7 +108,8 @@ need admin rights.
 2. Under **Permissions**, add the Jira API and the scopes listed in
    `ATLASSIAN_SCOPES` in `.env.example`. These are Jira read access, Jira
    Software board and sprint read access, and `offline_access`. The scopes in
-   the console and in `.env` must match.
+   the console and in `.env` must match. Optionally add `write:jira-work` to
+   both for [Link in Jira](#linking-prs-in-jira); `setup.sh` includes it.
 3. Under **Authorization**, set the callback URL to
    `http://localhost:5173/auth/atlassian/callback`.
 4. Under **Distribution**, enable sharing so teammates can sign in, not just
@@ -229,6 +231,7 @@ OAuth callback URLs work for both.
   why each PR was matched, and which PRs only mention the key. `Esc` closes
   open details. Hovering a branch state explains it; hovering a PR number
   shows why it counts for the ticket.
+- **Link in Jira:** see [Linking PRs in Jira](#linking-prs-in-jira).
 - **Progress:** while loading, the status line shows the current step (Jira
   tickets, Jira links, GitHub search, backports) with a count, and the Jira
   tickets are listed as soon as they arrive, before GitHub is checked. Results are
@@ -236,6 +239,27 @@ OAuth callback URLs work for both.
 - **Theme:** the menu in the top bar switches between **System theme**
   (follows your OS), **Light** and **Dark**. The choice is saved in your
   browser.
+
+### Linking PRs in Jira
+
+With `write:jira-work` in `ATLASSIAN_SCOPES` (and in the Atlassian console),
+each "Not linked in Jira" problem in **Details** gets a **Link in Jira**
+button. It adds the PR to the ticket as a web link titled `backport #11152`
+for a backport and `#11152` for any other PR, with your own Atlassian account, and the problem
+goes away. **Copy PR link** and **Open in Jira** stay next to it for linking by
+hand. Without the scope the dashboard only reads, as before.
+
+- The server first rebuilds the report and only links a PR that belongs to the
+  ticket and is missing from its links. A PR listed under "Only mentioned in"
+  can't be linked from the dashboard: the link would make it count as the
+  ticket's PR.
+- The server re-reads the ticket's links right before writing, so a link that
+  someone just pasted by hand isn't duplicated. Linking twice adds nothing too:
+  Jira updates the link it already has.
+- After adding the scope, everyone signs in to Atlassian again once. Until
+  then, or if you can't edit the ticket, the button says why it failed.
+- This is the only thing the dashboard writes. Requests to it must come from
+  the dashboard's own page (`PUBLIC_URL`).
 
 ### Branch names other than `stable-X.Y`
 
@@ -256,7 +280,8 @@ All with the signed-in user's own tokens, cached per user for 5 minutes.
 
 - **Jira:** the sprint's tickets (`/rest/agile/1.0/sprint/{id}/issue`) or the
   tickets updated in the dates (`/rest/api/3/search/jql`), then each ticket's
-  web links (`/rest/api/3/issue/{key}/remotelink`).
+  web links (`/rest/api/3/issue/{key}/remotelink`). **Link in Jira** posts to
+  the same address.
 - **GitHub GraphQL:** per repo, the default branch and which stable branches
   exist; per ticket, a search for the key (`repo:owner/name "OCISDEV-1464"`,
   10 searches per request), which returns PRs and issues; PRs known only from

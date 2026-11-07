@@ -6,11 +6,12 @@ import type {
   Sprint,
   SprintsResponse,
 } from '@ocis-dashboard/core';
-import { computed, ref, watch } from 'vue';
+import { computed, provide, ref, watch } from 'vue';
 import { api } from '../api';
 import { dataOr, useAsync } from '../composables/useAsync';
 import { useLocalStorage } from '../composables/useLocalStorage';
 import { useReport, type ReportRequest } from '../composables/useReport';
+import { JIRA_LINKER } from '../lib/jira-link';
 import { readUrlState, writeUrlState } from '../lib/url-state';
 import { daysAgo, formatRange } from '../lib/format';
 import { applyMarks, markFor, type FixedMarks } from '../lib/marks';
@@ -120,7 +121,27 @@ const request = computed<ReportRequest | null>(() => {
     ? { selection, repos: enabledRepos.value }
     : null;
 });
-const { state: report, refresh } = useReport(() => request.value);
+const { state: report, refresh, reload } = useReport(() => request.value);
+
+// Only offered when the server may write to Jira (ATLASSIAN_SCOPES has write:jira-work).
+provide(
+  JIRA_LINKER,
+  props.me.canLinkInJira
+    ? {
+        async link(key, prUrl) {
+          const current = request.value;
+          if (!current) throw new Error('Nothing is selected.');
+          const { created } = await api.linkInJira(current.selection, current.repos, {
+            key,
+            prUrl,
+          });
+          // The server dropped the ticket's cached Jira links; everything else comes from its cache.
+          reload();
+          return created;
+        },
+      }
+    : undefined,
+);
 
 // A branch filter only makes sense for the data it was chosen on. The first
 // request (null until sprints load) keeps the one a link brought along.

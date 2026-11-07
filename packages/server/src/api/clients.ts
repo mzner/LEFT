@@ -4,14 +4,11 @@ import { demoCodeHost, demoJira } from '../demo/sources';
 import { notConnected } from '../errors';
 import { GitHubClient } from '../github/client';
 import { JiraClient } from '../jira/client';
-import type { CodeHost, SprintSource, TicketSource } from '../report/ports';
+import type { CodeHost, JiraSource } from '../report/ports';
 import type { Session } from '../session';
 
 /** Jira as the signed-in user, or sample data in demo mode. */
-export async function jiraFor(
-  config: Config,
-  session: Session,
-): Promise<TicketSource & SprintSource> {
+export async function jiraFor(config: Config, session: Session): Promise<JiraSource> {
   if (config.demo) return demoJira;
   const auth = await freshAtlassianAuth(config, session);
   return new JiraClient({

@@ -78,6 +78,7 @@ const notLinkedInJira: FlagRule = ({ ticket, prs }) =>
         'error',
         `${linked.pr.repo}#${linked.pr.number} not linked in Jira`,
         [
+          { label: 'Link in Jira', url: linked.pr.url, jiraLink: true },
           { label: 'Copy PR link', url: linked.pr.url, copy: true },
           { label: 'Open in Jira', url: ticket.url },
         ],

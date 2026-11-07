@@ -894,6 +894,41 @@ button:disabled {
   font-weight: 560;
 }
 
+/* The one action that fixes the problem in place (Link in Jira); smaller to fit the line. */
+.flag-actions .primary-button {
+  height: 24px;
+  padding: 0 10px;
+  font-size: inherit;
+}
+
+.flag-actions:has(.primary-button) {
+  align-items: center;
+}
+
+.fix-list li[data-tone='done'] {
+  border-left-color: var(--merged);
+}
+
+.fix-list + .fix-list,
+.fix-list + .hint {
+  margin-top: 10px;
+}
+
+.fix-list li[data-tone='done'] strong,
+.linked-note {
+  color: var(--merged);
+}
+
+.linked-note {
+  font-weight: 560;
+}
+
+.link-error {
+  margin: 4px 0 0;
+  color: var(--missing);
+  font-size: var(--text-s);
+}
+
 .details-toggle {
   padding: 0;
   border: none;

@@ -33,7 +33,8 @@ prompt_if_missing() {
 if [ -z "${env_vars[ATLASSIAN_CLIENT_ID]:-}" ] || [ -z "${env_vars[ATLASSIAN_CLIENT_SECRET]:-}" ] || [ -z "${env_vars[ATLASSIAN_SITE_URL]:-}" ]; then
   echo "Atlassian OAuth app: https://developer.atlassian.com/console/myapps/"
   echo "  Authorization tab -> callback URL: http://localhost:5173/auth/atlassian/callback"
-  echo "  Permissions tab -> add Jira API -> enable scopes: read:jira-work, read:jira-user, read:board-scope:jira-software, read:sprint:jira-software, read:project:jira, read:issue-details:jira, read:jql:jira, offline_access"
+  echo "  Permissions tab -> add Jira API -> enable scopes: read:jira-work, read:jira-user, read:board-scope:jira-software, read:sprint:jira-software, read:project:jira, read:issue-details:jira, read:jql:jira, write:jira-work, offline_access"
+  echo "  (write:jira-work lets the dashboard add PRs to tickets as web links; leave it out of both the console and .env to stay read-only)"
   open_url "https://developer.atlassian.com/console/myapps/"
   prompt_if_missing ATLASSIAN_CLIENT_ID
   prompt_if_missing ATLASSIAN_CLIENT_SECRET
@@ -42,7 +43,7 @@ if [ -z "${env_vars[ATLASSIAN_CLIENT_ID]:-}" ] || [ -z "${env_vars[ATLASSIAN_CLI
 fi
 
 if [ -z "${env_vars[ATLASSIAN_SCOPES]:-}" ]; then
-  env_vars[ATLASSIAN_SCOPES]='read:jira-work read:jira-user read:board-scope:jira-software read:sprint:jira-software read:project:jira read:issue-details:jira read:jql:jira offline_access'
+  env_vars[ATLASSIAN_SCOPES]='read:jira-work read:jira-user read:board-scope:jira-software read:sprint:jira-software read:project:jira read:issue-details:jira read:jql:jira write:jira-work offline_access'
 fi
 
 if [ -z "${env_vars[GITHUB_CLIENT_ID]:-}" ] || [ -z "${env_vars[GITHUB_CLIENT_SECRET]:-}" ]; then

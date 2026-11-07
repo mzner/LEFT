@@ -1,6 +1,6 @@
 import type { Ticket } from '@ocis-dashboard/core';
 import { AppError } from '../errors';
-import type { CodeHost, SprintSource, TicketSource } from '../report/ports';
+import type { CodeHost, JiraSource } from '../report/ports';
 import {
   DEMO_BOARDS,
   DEMO_ISSUES,
@@ -18,9 +18,10 @@ function asTicket({ sprintId: _sprintId, ...ticket }: DemoTicket): Ticket {
   return { ...ticket, remoteLinkUrls: [] };
 }
 
-const linksByKey = new Map(DEMO_TICKETS.map((ticket) => [ticket.key, ticket.remoteLinkUrls]));
+/** Copies, so links added in demo mode don't change the fixtures. They last until a restart. */
+const linksByKey = new Map(DEMO_TICKETS.map((ticket) => [ticket.key, [...ticket.remoteLinkUrls]]));
 
-export const demoJira: TicketSource & SprintSource = {
+export const demoJira: JiraSource = {
   async listBoards() {
     await sleep(150);
     return DEMO_BOARDS;
@@ -39,7 +40,14 @@ export const demoJira: TicketSource & SprintSource = {
   },
   async remoteLinkUrls(key) {
     await sleep(120);
-    return linksByKey.get(key) ?? [];
+    // A copy, as from a real API: callers (and the cache) must not see later writes.
+    return [...(linksByKey.get(key) ?? [])];
+  },
+  async addRemoteLink(key, { url }) {
+    await sleep(300);
+    const links = linksByKey.get(key) ?? [];
+    if (!links.includes(url)) links.push(url);
+    linksByKey.set(key, links);
   },
 };
 

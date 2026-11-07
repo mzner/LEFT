@@ -43,6 +43,7 @@ export interface ReportServiceDeps {
   cache: TtlCache;
 }
 
+const remoteLinksKey = (issueKey: string) => `links:${issueKey}`;
 /** No `is:pr`: one search finds the PRs and the issues that mention the key. */
 const keyQuery = (repo: RepoName, key: string) => `repo:${repo} "${key}"`;
 const backportQuery = (repo: RepoName, number: number) => `repo:${repo} is:pr in:body "${number}"`;
@@ -127,7 +128,7 @@ export class ReportService {
   ): Promise<Ticket[]> {
     return mapLimit(tickets, REMOTE_LINK_CONCURRENCY, async (ticket) => {
       check();
-      const remoteLinkUrls = await this.cached(`links:${ticket.key}`, () =>
+      const remoteLinkUrls = await this.cached(remoteLinksKey(ticket.key), () =>
         this.deps.tickets.remoteLinkUrls(ticket.key),
       );
       advance(1);
@@ -233,6 +234,11 @@ export class ReportService {
     });
 
     return Promise.all(queries.map((query) => results.get(query)!));
+  }
+
+  /** After a link was added in Jira, so the next report reads the ticket's links again. */
+  forgetRemoteLinks(issueKey: string): void {
+    this.deps.cache.delete(remoteLinksKey(issueKey));
   }
 
   private cached<T>(key: string, load: () => Promise<T>): Promise<T> {

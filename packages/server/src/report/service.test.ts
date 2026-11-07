@@ -132,6 +132,20 @@ describe('ReportService', () => {
     expect(code.search).toHaveBeenCalledTimes(3);
   });
 
+  it("reads a ticket's Jira links again after they were forgotten, and nothing else", async () => {
+    const { service, tickets, code } = setup();
+    const selection = { kind: 'sprint', sprintId: 27 } as const;
+    await service.build(selection, [OCIS]);
+    const searches = vi.mocked(code.search).mock.calls.length;
+
+    service.forgetRemoteLinks('OCISDEV-1464');
+    await service.build(selection, [OCIS]);
+
+    expect(tickets.remoteLinkUrls).toHaveBeenCalledTimes(2);
+    expect(tickets.sprintTickets).toHaveBeenCalledTimes(1);
+    expect(code.search).toHaveBeenCalledTimes(searches);
+  });
+
   it('reports progress for every step, ending each with done === total', async () => {
     const { service } = setup();
     const events: string[] = [];
