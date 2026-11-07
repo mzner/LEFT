@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { FlagCode, RepoInfo } from '@ocis-dashboard/core';
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { branchRows } from '../lib/branches';
 import { formatRange } from '../lib/format';
 import type { MarkedReport } from '../lib/marks';
+import { moveCurrent, navAction } from '../lib/row-nav';
 import {
   doneButUnfinished,
   FLAGS,
@@ -16,7 +17,7 @@ import {
 import BranchList from './BranchList.vue';
 import TicketDetails from './TicketDetails.vue';
 
-defineProps<{
+const props = defineProps<{
   reports: MarkedReport[];
   repos: RepoInfo[];
   /** The active sort; for a date sort, each row shows that date. */
@@ -39,10 +40,53 @@ function expand(key: string) {
   if (!expanded.value.has(key)) toggle(key);
 }
 
-// Esc closes open details (unless you're typing somewhere, where Esc means something else).
+function collapse(key: string) {
+  if (expanded.value.has(key)) toggle(key);
+}
+
+/** The row the keyboard acts on (j/k to move; l, h, o or Enter for its details). */
+const current = ref<string>();
+
+// A row that left the list (filter, new report) can't stay current.
+watch(
+  () => props.reports,
+  (reports) => {
+    if (current.value && !reports.some((r) => r.ticket.key === current.value)) {
+      current.value = undefined;
+    }
+  },
+);
+
+async function moveTo(key: string | undefined) {
+  current.value = key;
+  await nextTick();
+  document
+    .querySelector(`[data-ticket-key="${key}"]`)
+    ?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+}
+
+// Keys act unless you're typing somewhere, where they mean text (Esc included).
 function onKey(event: KeyboardEvent) {
-  const typing = (event.target as HTMLElement | null)?.closest('input, select, textarea');
+  const target = event.target as HTMLElement | null;
+  const typing = !!target?.closest('input, select, textarea');
   if (event.key === 'Escape' && !typing && expanded.value.size > 0) expanded.value = new Set();
+
+  const action = navAction(event.key, {
+    typing,
+    interactive: !!target?.closest('a, button, summary'),
+    modified: event.metaKey || event.ctrlKey || event.altKey,
+  });
+  if (!action) return;
+  if (action.type === 'move') {
+    event.preventDefault();
+    const keys = props.reports.map((r) => r.ticket.key);
+    moveTo(moveCurrent(keys, current.value, action.delta));
+  } else if (current.value) {
+    event.preventDefault();
+    if (action.type === 'expand') expand(current.value);
+    else if (action.type === 'collapse') collapse(current.value);
+    else toggle(current.value);
+  }
 }
 onMounted(() => window.addEventListener('keydown', onKey));
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
@@ -72,8 +116,10 @@ function severity(report: MarkedReport): 'fix' | 'wait' | 'ok' {
         <template v-for="report in reports" :key="report.ticket.key">
           <tr
             class="ticket-row"
+            :data-ticket-key="report.ticket.key"
             :data-severity="severity(report)"
             :data-expanded="expanded.has(report.ticket.key)"
+            :data-current="current === report.ticket.key"
           >
             <td class="ticket-cell">
               <a

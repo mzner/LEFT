@@ -183,10 +183,25 @@ OAuth callback URLs work for both.
     stable-8.0".
   - Search finds tickets by key or summary; press `/` to jump to it.
   - The assignee filter has "Assigned to me", which uses your Atlassian
-    account.
+    account. Press `i` to switch it on or off.
   - A filter that hides tickets is tinted, and the headline says what it
     keeps ("Showing 20 of 77 tickets: assigned to you"), with **Clear
     filters**.
+- **Keyboard:** shortcuts work anywhere on the page except while you type in a
+  field, and never with Ctrl, Cmd or Alt held.
+
+  | Key            | Does                                                             |
+  | -------------- | ---------------------------------------------------------------- |
+  | `j` / `k`      | Move the highlight to the next / previous ticket                 |
+  | `l` / `h`      | Open / close the highlighted ticket's Details                    |
+  | `o` or `Enter` | Flip the Details (`Enter` leaves a focused link or button alone) |
+  | `i`            | Switch "Assigned to me" on or off                                |
+  | `/`            | Jump to search                                                   |
+  | `Esc`          | Close all open Details                                           |
+
+  `j` starts at the first ticket when nothing is highlighted. The highlight
+  clears when its ticket leaves the list, e.g. through a filter.
+
 - **Links:** the address bar holds the sprint (or dates) and the filters, so a
   link or bookmark opens the same view.
 - **Sort:** newest first by one date; with a date sort on, each row shows it.
@@ -263,7 +278,7 @@ packages/
   web/     Vite + Vue 3 (<script setup>, TypeScript). components/ (SFCs),
            composables/ (useReport streams progress, useTheme), lib/ (pure
            functions: filters, sorting, branch list, progress text, fixed marks,
-           URL state).
+           URL state, keyboard shortcuts).
 ```
 
 The UI uses one typeface, Recursive (bundled, no external requests). Its mono

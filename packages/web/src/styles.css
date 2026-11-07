@@ -677,6 +677,16 @@ button:disabled {
   background: var(--surface);
 }
 
+/* The row j/k landed on; the outline also shows without colour. */
+.ticket-row[data-current='true'] {
+  outline: 2px solid var(--action);
+  outline-offset: -2px;
+}
+
+.ticket-row[data-current='true'] td {
+  background: var(--action-tint);
+}
+
 .ticket-key {
   font-weight: 700;
   margin-right: 10px;

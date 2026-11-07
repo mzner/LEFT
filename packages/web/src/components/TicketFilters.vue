@@ -14,13 +14,18 @@ const assignee = defineModel<AssigneeFilter>('assignee', { required: true });
 const branch = defineModel<string>('branch', { required: true });
 const sort = defineModel<SortKey>('sort', { required: true });
 
-// "/" jumps to the search field, unless you're already typing somewhere.
+// "/" jumps to the search field and "i" switches "Assigned to me" on or off,
+// unless you're already typing somewhere.
 const searchInput = ref<HTMLInputElement>();
 function onKey(event: KeyboardEvent) {
   const typing = (event.target as HTMLElement | null)?.closest('input, select, textarea');
-  if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey) {
+  if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.key === '/') {
     event.preventDefault();
     searchInput.value?.focus();
+  } else if (event.key === 'i') {
+    event.preventDefault();
+    assignee.value = assignee.value === 'me' ? 'all' : 'me';
   }
 }
 onMounted(() => window.addEventListener('keydown', onKey));
@@ -39,7 +44,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
       placeholder="Find by key or summary  /"
       :data-active="search.trim() !== ''"
     />
-    <select v-model="assignee" aria-label="Assignee" :data-active="assignee !== 'all'">
+    <select
+      v-model="assignee"
+      aria-label="Assignee"
+      aria-keyshortcuts="i"
+      title="Press i to switch “Assigned to me” on or off"
+      :data-active="assignee !== 'all'"
+    >
       <option value="all">Anyone</option>
       <option value="me">Assigned to me</option>
       <option value="unassigned">Unassigned</option>
