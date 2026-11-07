@@ -16,6 +16,8 @@ export interface Config {
     clientSecret: string;
     scopes: string;
     siteUrl: string;
+    /** `scopes` includes Jira write access, so PRs can be linked from the dashboard. */
+    canLink: boolean;
   };
   github: {
     clientId: string;
@@ -34,6 +36,9 @@ const DEFAULT_ATLASSIAN_SCOPES = [
   'offline_access',
 ].join(' ');
 
+/** Lets the dashboard add PRs to tickets as web links. Off unless listed in ATLASSIAN_SCOPES. */
+export const JIRA_WRITE_SCOPE = 'write:jira-work';
+
 const DEMO_SESSION_SECRET = 'demo-mode-session-secret-not-for-real-use';
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -49,6 +54,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   };
   const trimSlash = (url: string) => url.replace(/\/+$/, '');
 
+  const scopes = optional('ATLASSIAN_SCOPES', DEFAULT_ATLASSIAN_SCOPES);
+
   const config: Config = {
     port: Number(optional('SERVER_PORT', '3000')),
     publicUrl: trimSlash(optional('PUBLIC_URL', 'http://localhost:5173')),
@@ -59,9 +66,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     atlassian: {
       clientId: required('ATLASSIAN_CLIENT_ID'),
       clientSecret: required('ATLASSIAN_CLIENT_SECRET'),
-      scopes: optional('ATLASSIAN_SCOPES', DEFAULT_ATLASSIAN_SCOPES),
+      scopes,
       // No default: the site is yours. Demo mode only builds links, so a placeholder will do.
       siteUrl: trimSlash(required('ATLASSIAN_SITE_URL', 'https://example.atlassian.net')),
+      // Demo mode pretends to link, so the button can be tried.
+      canLink: demo || scopes.split(/\s+/).includes(JIRA_WRITE_SCOPE),
     },
     github: {
       clientId: required('GITHUB_CLIENT_ID'),

@@ -1,15 +1,19 @@
 import { PassThrough } from 'node:stream';
 import type {
   BoardsResponse,
+  JiraLinkRequest,
+  JiraLinkResponse,
   MeResponse,
   ReportResponse,
   ReportStreamEvent,
   SprintsResponse,
 } from '@ocis-dashboard/core';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Config } from '../config';
-import { AppError } from '../errors';
+import { AppError, UpstreamError } from '../errors';
+import { planJiraLink } from '../report/jira-link';
 import { ReportService } from '../report/service';
+import type { Session } from '../session';
 import { codeHostFor, jiraFor } from './clients';
 import { toApiError } from './error-handler';
 import { parseRepos, parseSelection, type ReportQuery } from './selection';
@@ -17,8 +21,12 @@ import { parseRepos, parseSelection, type ReportQuery } from './selection';
 const DEMO_USER = { connected: true, id: 'demo', name: 'Demo user' };
 
 export function registerApiRoutes(app: FastifyInstance, config: Config): void {
+  /** What browsers send as `Origin` for the dashboard's page (no path, no default port). */
+  const appOrigin = new URL(config.publicUrl).origin;
+
   app.get('/api/me', async (request): Promise<MeResponse> => {
-    if (config.demo) return { atlassian: DEMO_USER, github: DEMO_USER, demo: true };
+    const canLinkInJira = config.atlassian.canLink;
+    if (config.demo) return { atlassian: DEMO_USER, github: DEMO_USER, demo: true, canLinkInJira };
     const { atlassian, github } = request.session;
     return {
       atlassian: atlassian
@@ -28,6 +36,7 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
         ? { connected: true, id: github.login, name: github.name }
         : { connected: false },
       demo: false,
+      canLinkInJira,
     };
   });
 
@@ -56,14 +65,14 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
   app.get<{ Querystring: ReportQuery }>(
     '/api/report',
     async (request, reply): Promise<ReportResponse> => {
-      const { service, selection, repos } = await prepareReport(request);
+      const { service, selection, repos } = await prepareReport(request.query, request.session);
       return service.build(selection, repos, { signal: abortOnDisconnect(reply) });
     },
   );
 
   /** NDJSON: progress events while the report is built, then the result (or an error). */
   app.get<{ Querystring: ReportQuery }>('/api/report/stream', async (request, reply) => {
-    const { service, selection, repos } = await prepareReport(request);
+    const { service, selection, repos } = await prepareReport(request.query, request.session);
     const signal = abortOnDisconnect(reply);
     const stream = new PassThrough();
     const emit = (event: ReportStreamEvent) => {
@@ -88,6 +97,59 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
       .send(stream);
   });
 
+  /**
+   * Adds a PR to a ticket as a Jira web link. The query is the report's
+   * selection: the report is rebuilt (from the cache, normally) to check that
+   * the PR really is the ticket's and still missing from its links.
+   */
+  app.post<{ Querystring: ReportQuery; Body: JiraLinkRequest }>(
+    '/api/report/jira-link',
+    async (request): Promise<JiraLinkResponse> => {
+      if (!config.atlassian.canLink) {
+        throw new AppError(
+          403,
+          'jira_write_disabled',
+          'Linking in Jira is off: ATLASSIAN_SCOPES has no write:jira-work.',
+        );
+      }
+      // The session cookie is SameSite=Lax already; this also stops same-site pages.
+      if (request.headers.origin !== appOrigin) {
+        throw new AppError(403, 'bad_origin', 'Link from the dashboard itself.');
+      }
+      const { key, prUrl } = request.body ?? {};
+      if (typeof key !== 'string' || typeof prUrl !== 'string') {
+        throw new AppError(400, 'bad_request', 'Pass the ticket key and the PR URL.');
+      }
+
+      const { service, jira, selection, repos } = await prepareReport(
+        request.query,
+        request.session,
+      );
+      // Read this ticket's links fresh: one pasted into Jira by hand a minute ago has no
+      // globalId of ours, so writing on the strength of cached links would duplicate it.
+      service.forgetRemoteLinks(key);
+      const plan = planJiraLink(await service.build(selection, repos), key, prUrl);
+      if (plan.kind === 'already-linked') return { created: false };
+
+      try {
+        await jira.addRemoteLink(key, plan.link);
+      } catch (error) {
+        if (error instanceof UpstreamError && error.status === 403) {
+          request.log.warn({ url: error.url, body: error.body }, error.message);
+          throw new AppError(
+            403,
+            'jira_link_forbidden',
+            `Jira didn't allow the link. You may not be allowed to edit ${key}, or you signed in ` +
+              'before linking was turned on: sign out and sign in again.',
+          );
+        }
+        throw error;
+      }
+      service.forgetRemoteLinks(key);
+      return { created: true };
+    },
+  );
+
   /** Aborts when the client goes away before the response is complete (e.g. a newer selection). */
   function abortOnDisconnect(reply: FastifyReply): AbortSignal {
     const controller = new AbortController();
@@ -97,19 +159,19 @@ export function registerApiRoutes(app: FastifyInstance, config: Config): void {
     return controller.signal;
   }
 
-  async function prepareReport(request: FastifyRequest<{ Querystring: ReportQuery }>) {
-    const selection = parseSelection(request.query);
-    const repos = parseRepos(request.query.repos);
-    const { session } = request;
-    if (request.query.refresh === '1') session.cache.clear();
+  async function prepareReport(query: ReportQuery, session: Session) {
+    const selection = parseSelection(query);
+    const repos = parseRepos(query.repos);
+    if (query.refresh === '1') session.cache.clear();
 
+    const jira = await jiraFor(config, session);
     const service = new ReportService({
-      tickets: await jiraFor(config, session),
+      tickets: jira,
       code: codeHostFor(config, session),
       projectKey: config.projectKey,
       branchTemplates: config.branchTemplates,
       cache: session.cache,
     });
-    return { service, selection, repos };
+    return { service, jira, selection, repos };
   }
 }

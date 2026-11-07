@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FlagAction, GitHubIssueRef, TicketReport } from '@ocis-dashboard/core';
-import { computed, ref } from 'vue';
+import { computed, inject, ref, watch } from 'vue';
+import { JIRA_LINKER, reconcileLinks, type LinkResult } from '../lib/jira-link';
 import { FLAGS, SOURCE_TEXT } from '../lib/view';
 
 /** Explains the row: what to fix, what each PR is and why it belongs to the ticket. */
@@ -17,6 +18,70 @@ async function copy(action: FlagAction) {
   }, 2000);
 }
 
+const linker = inject(JIRA_LINKER, undefined);
+
+/** The PR being linked in Jira, why the last attempt failed, and what was linked (per PR URL). */
+const linking = ref<string>();
+const linkErrors = ref<Record<string, string>>({});
+/** What was linked, kept while the details are open; see `reconcileLinks`. */
+const linkResults = ref<Record<string, LinkResult>>({});
+
+/** E.g. `owncloud/ocis#13255`, for the confirmation once the problem itself is gone. */
+function prName(url: string): string {
+  const pr = props.report.prs.find((l) => l.pr.url === url)?.pr;
+  return pr ? `${pr.repo}#${pr.number}` : url;
+}
+
+/** PRs the latest report still lists as "Not linked in Jira". */
+const unlinked = computed(
+  () =>
+    new Set(
+      props.report.flags
+        .flatMap((f) => f.actions ?? [])
+        .filter((a) => a.jiraLink)
+        .map((a) => a.url),
+    ),
+);
+
+// Each report that comes in wins over what we remember: if the link is deleted
+// in Jira and the report refreshed, the button must come back.
+watch(unlinked, (urls) => {
+  linkResults.value = reconcileLinks(linkResults.value, urls);
+});
+
+/** Confirmations for links whose problem is gone (after the report reloaded). */
+const confirmations = computed(() =>
+  Object.entries(linkResults.value)
+    .filter(([url]) => !unlinked.value.has(url))
+    .map(([url, { created }]) => ({
+      url,
+      text: `${prName(url)} ${created ? 'is now' : 'was already'} linked in Jira.`,
+    })),
+);
+
+async function linkInJira(action: FlagAction) {
+  if (!linker || linking.value) return;
+  linking.value = action.url;
+  const others = { ...linkErrors.value };
+  delete others[action.url];
+  linkErrors.value = others;
+  try {
+    // On success the report reloads and this problem goes away; `confirmations` takes over.
+    const created = await linker.link(props.report.ticket.key, action.url);
+    linkResults.value = { ...linkResults.value, [action.url]: { created, settled: false } };
+  } catch (error) {
+    linkErrors.value = {
+      ...linkErrors.value,
+      [action.url]: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    linking.value = undefined;
+  }
+}
+
+/** Without Jira write access, the Link in Jira action isn't offered. */
+const usable = (actions: FlagAction[]) => actions.filter((a) => !a.jiraLink || linker);
+
 /** Linked and unlinked issues in one list, each issue once. */
 const issues = computed(() => {
   const byUrl = new Map<string, { issue: GitHubIssueRef; linked: boolean }>();
@@ -30,6 +95,14 @@ const issues = computed(() => {
   <div class="details">
     <section>
       <h3>What to do</h3>
+      <ul v-if="confirmations.length > 0" class="fix-list">
+        <li v-for="c in confirmations" :key="c.url" data-tone="done" role="status">
+          <strong>✓ {{ c.text }}</strong>
+          <span class="flag-actions">
+            <a :href="report.ticket.url" target="_blank" rel="noreferrer">Open in Jira</a>
+          </span>
+        </li>
+      </ul>
       <p v-if="report.flags.length === 0" class="hint">
         Nothing. Every PR is linked both ways and the fix is on every branch its fix versions need.
       </p>
@@ -41,13 +114,33 @@ const issues = computed(() => {
         >
           <strong>{{ flag.message }}.</strong> {{ FLAGS[flag.code].hint }}
           <span v-if="flag.actions" class="flag-actions">
-            <template v-for="action in flag.actions" :key="action.label">
-              <button v-if="action.copy" class="inline-button" @click="copy(action)">
+            <template v-for="action in usable(flag.actions)" :key="action.label">
+              <span
+                v-if="action.jiraLink && action.url in linkResults"
+                class="linked-note"
+                role="status"
+              >
+                ✓ Linked in Jira
+              </span>
+              <button
+                v-else-if="action.jiraLink"
+                class="primary-button"
+                :disabled="linking !== undefined"
+                @click="linkInJira(action)"
+              >
+                {{ linking === action.url ? 'Linking…' : action.label }}
+              </button>
+              <button v-else-if="action.copy" class="inline-button" @click="copy(action)">
                 {{ copied === action.url ? 'Copied' : action.label }}
               </button>
               <a v-else :href="action.url" target="_blank" rel="noreferrer">{{ action.label }}</a>
             </template>
           </span>
+          <template v-for="action in flag.actions ?? []" :key="action.label">
+            <p v-if="action.jiraLink && linkErrors[action.url]" class="link-error" role="alert">
+              {{ linkErrors[action.url] }}
+            </p>
+          </template>
         </li>
       </ul>
     </section>

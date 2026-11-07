@@ -35,7 +35,10 @@ export interface ReportState {
  */
 export function useReport(request: () => ReportRequest | null): {
   state: Ref<ReportState>;
+  /** Fetches fresh data from Jira and GitHub. */
   refresh: () => void;
+  /** Loads again from the server's cache, e.g. after the server dropped part of it. */
+  reload: () => void;
 } {
   const state = shallowRef<ReportState>({ status: 'idle' });
   const run = ref(0);
@@ -93,5 +96,8 @@ export function useReport(request: () => ReportRequest | null): {
     bypassCacheOnce = true;
     run.value++;
   };
-  return { state, refresh };
+  const reload = () => {
+    run.value++;
+  };
+  return { state, refresh, reload };
 }

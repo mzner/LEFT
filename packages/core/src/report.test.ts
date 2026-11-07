@@ -90,8 +90,9 @@ describe('buildReports', () => {
         code: 'NOT_LINKED_IN_JIRA',
         severity: 'error',
         message: 'owncloud/ocis#13255 not linked in Jira',
-        // Copy the PR link, then paste it into the ticket's links.
+        // Link it from the dashboard, or copy the PR link and paste it into the ticket's links.
         actions: [
+          { label: 'Link in Jira', url: `https://github.com/${OCIS}/pull/13255`, jiraLink: true },
           { label: 'Copy PR link', url: `https://github.com/${OCIS}/pull/13255`, copy: true },
           { label: 'Open in Jira', url: 'https://example.atlassian.net/browse/OCISDEV-1464' },
         ],

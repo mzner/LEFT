@@ -13,6 +13,19 @@ export interface MeResponse {
   github: ProviderStatus;
   /** The server runs on sample data; no sign-in needed. */
   demo: boolean;
+  /** `ATLASSIAN_SCOPES` includes Jira write access, so PRs can be linked from the dashboard. */
+  canLinkInJira: boolean;
+}
+
+/** Body of `POST /api/report/jira-link`; the report selection goes in the query, as for `/api/report`. */
+export interface JiraLinkRequest {
+  key: string;
+  prUrl: string;
+}
+
+export interface JiraLinkResponse {
+  /** False when Jira already had the link, so nothing was written. */
+  created: boolean;
 }
 
 export interface Board {

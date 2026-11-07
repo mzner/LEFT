@@ -29,6 +29,10 @@ export class TtlCache {
     return this.peek<T>(key) ?? this.set(key, load());
   }
 
+  delete(key: string): void {
+    this.entries.delete(key);
+  }
+
   /** Drops expired entries. */
   prune(): void {
     const now = this.now();

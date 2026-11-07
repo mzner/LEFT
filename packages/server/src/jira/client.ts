@@ -1,7 +1,7 @@
 import type { Board, Sprint, Ticket } from '@ocis-dashboard/core';
 import { jiraApiBase } from '../auth/atlassian';
 import { requestJson, type RequestOptions } from '../http';
-import type { SprintSource, TicketSource } from '../report/ports';
+import type { RemoteLinkWriter, SprintSource, TicketSource } from '../report/ports';
 import { sortSprints, toSprint, toTicket, type JiraIssue, type JiraSprint } from './mapper';
 
 const ISSUE_FIELDS = [
@@ -42,8 +42,11 @@ export interface JiraClientOptions {
   projectKey: string;
 }
 
-/** Read-only Jira Cloud client acting as the signed-in user. */
-export class JiraClient implements TicketSource, SprintSource {
+/**
+ * Jira Cloud client acting as the signed-in user. It only reads, except for
+ * `addRemoteLink`, which needs the `write:jira-work` scope.
+ */
+export class JiraClient implements TicketSource, SprintSource, RemoteLinkWriter {
   private readonly base: string;
 
   constructor(private readonly options: JiraClientOptions) {
@@ -107,6 +110,13 @@ export class JiraClient implements TicketSource, SprintSource {
       `/rest/api/3/issue/${encodeURIComponent(issueKey)}/remotelink`,
     );
     return links.map((link) => link.object?.url).filter((url): url is string => Boolean(url));
+  }
+
+  async addRemoteLink(issueKey: string, link: { url: string; title: string }): Promise<void> {
+    await this.call(`/rest/api/3/issue/${encodeURIComponent(issueKey)}/remotelink`, {
+      // Jira updates the link with the same globalId instead of adding a second one.
+      json: { globalId: link.url, object: { url: link.url, title: link.title } },
+    });
   }
 
   private async agilePages<T>(path: string): Promise<T[]> {
