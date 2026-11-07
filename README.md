@@ -230,7 +230,7 @@ OAuth callback URLs work for both.
 With `write:jira-work` in `ATLASSIAN_SCOPES` (and in the Atlassian console),
 each "Not linked in Jira" problem in **Details** gets a **Link in Jira**
 button. It adds the PR to the ticket as a web link titled `backport #11152`
-for a backport and `#11152` for any other PR, with your own Atlassian account, and the problem
+for a backport and `PR #11152` for any other PR, with your own Atlassian account, and the problem
 goes away. **Copy PR link** and **Open in Jira** stay next to it for linking by
 hand. Without the scope the dashboard only reads, as before.
 

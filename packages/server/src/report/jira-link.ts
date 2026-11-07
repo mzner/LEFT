@@ -28,8 +28,8 @@ export function planJiraLink(report: ReportResponse, key: string, prUrl: string)
   if (linked.pr.state === 'closed') {
     throw new AppError(409, 'not_linkable', 'That PR was closed without merging; link it in Jira.');
   }
-  // The team's pattern: "backport #13255" for backports, "#13255" for the others.
+  // The team's pattern: "backport #13255" for backports, "PR #13255" for the others.
   const { number } = linked.pr;
-  const title = linked.isBackport ? `backport #${number}` : `#${number}`;
+  const title = linked.isBackport ? `backport #${number}` : `PR #${number}`;
   return { kind: 'link', link: { url: prUrl, title } };
 }

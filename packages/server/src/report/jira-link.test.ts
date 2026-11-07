@@ -43,7 +43,7 @@ const refusal = (fn: () => unknown) => {
 };
 
 describe('planJiraLink', () => {
-  it('titles the link "backport #N" for a backport and "#N" for other PRs', () => {
+  it('titles the link "backport #N" for a backport and "PR #N" for other PRs', () => {
     const report = response([linked(5, { isBackport: true }), linked(6)]);
     expect(planJiraLink(report, 'OCISDEV-1', url(5))).toEqual({
       kind: 'link',
@@ -51,7 +51,7 @@ describe('planJiraLink', () => {
     });
     expect(planJiraLink(report, 'OCISDEV-1', url(6))).toEqual({
       kind: 'link',
-      link: { url: url(6), title: '#6' },
+      link: { url: url(6), title: 'PR #6' },
     });
   });
 
