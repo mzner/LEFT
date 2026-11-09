@@ -26,13 +26,18 @@ import {
   type BlockFilter,
 } from '../lib/release';
 import {
+  describeAssignees,
+  formatAssignees,
+  parseAssignees,
+  type AssigneeFilter,
+} from '../lib/assignee-filter';
+import {
   assignees,
   branchOptions,
   decodeBranchFilter,
   FLAG_ORDER,
   filterReports,
   sortReports,
-  type AssigneeFilter,
   type ProblemFilter,
   type SortKey,
 } from '../lib/view';
@@ -68,7 +73,7 @@ const chosenVersion = ref<string | null>(null);
 
 // How to filter what was loaded.
 const problem = ref<ProblemFilter>('all');
-const assignee = ref<AssigneeFilter>('all');
+const assignee = ref<AssigneeFilter>([]);
 const search = ref('');
 /** A preference, so it survives reloads and sprint changes. */
 const sort = useLocalStorage<SortKey>('sort', 'jira');
@@ -88,7 +93,7 @@ if (fromUrl.sprintId !== undefined) chosenSprintId.value = fromUrl.sprintId;
 if (fromUrl.from) dates.value = { from: fromUrl.from, to: fromUrl.to ?? fromUrl.from };
 if (fromUrl.version) chosenVersion.value = fromUrl.version;
 if (fromUrl.problem) problem.value = fromUrl.problem as ProblemFilter;
-if (fromUrl.assignee) assignee.value = fromUrl.assignee;
+assignee.value = parseAssignees(fromUrl.assignee);
 if (fromUrl.search) search.value = fromUrl.search;
 if (fromUrl.branch) branch.value = fromUrl.branch;
 if (fromUrl.blocking) blocking.value = fromUrl.blocking as BlockFilter;
@@ -207,7 +212,7 @@ watch(
     version: mode.value === 'release' ? (version.value?.name ?? undefined) : undefined,
     problem: problem.value,
     blocking: mode.value === 'release' ? blocking.value : undefined,
-    assignee: assignee.value,
+    assignee: formatAssignees(assignee.value),
     search: search.value,
     branch: branch.value,
   }),
@@ -266,19 +271,15 @@ const beforeProblem = computed(() => {
   return keys ? filtered.filter((r) => keys.has(r.ticket.key)) : filtered;
 });
 const shown = computed(() =>
-  filterReports(beforeProblem.value, { problem: problem.value, assignee: 'all', search: '' }),
+  filterReports(beforeProblem.value, { problem: problem.value, assignee: [], search: '' }),
 );
 
 // What the filters keep, in words, so a filtered list never passes for the whole sprint.
 const people = computed(() => assignees(allReports.value));
 const filterNote = computed(() => {
   const parts: string[] = [];
-  if (assignee.value === 'me') parts.push('assigned to you');
-  else if (assignee.value === 'unassigned') parts.push('unassigned');
-  else if (assignee.value !== 'all') {
-    const name = people.value.find((p) => p.id === assignee.value)?.name ?? 'one person';
-    parts.push(`assigned to ${name}`);
-  }
+  const who = describeAssignees(assignee.value, people.value);
+  if (who) parts.push(who);
   const filter = decodeBranchFilter(branch.value);
   if (filter) {
     const how = { any: 'needing', missing: 'missing on', open: 'open on' }[filter.which];
@@ -297,7 +298,7 @@ const filterNote = computed(() => {
 
 function clearFilters() {
   blocking.value = '';
-  assignee.value = 'all';
+  assignee.value = [];
   branch.value = '';
   search.value = '';
   problem.value = 'all';

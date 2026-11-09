@@ -50,7 +50,7 @@ describe('branch filter', () => {
   it('filters "missing on" the same way', () => {
     const shown = filterReports(reports, {
       problem: 'all',
-      assignee: 'all',
+      assignee: [],
       search: '',
       branch: { repo: OCIS, branch: 'stable-7.0', which: 'missing' },
     });

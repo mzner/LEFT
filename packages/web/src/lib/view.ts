@@ -1,4 +1,5 @@
 import type { FlagCode, MatchSource, RepoName, TicketReport } from '@ocis-dashboard/core';
+import { matchesAssignee, type AssigneeFilter } from './assignee-filter';
 
 export interface FlagMeta {
   /** Short name for chips and filters. */
@@ -51,9 +52,6 @@ export const FLAG_ORDER = Object.keys(FLAGS) as FlagCode[];
 /** `'all'`, `'attention'` (any flag), `'marked'` (marked fixed by hand) or one flag code. */
 export type ProblemFilter = 'all' | 'attention' | 'marked' | FlagCode;
 
-/** `'all'`, `'me'`, `'unassigned'` or a Jira account id. */
-export type AssigneeFilter = string;
-
 /** Tickets that need or have `branch`, optionally only those where it is missing or open. */
 export interface BranchFilter {
   repo: RepoName;
@@ -77,7 +75,7 @@ export function filterReports<T extends TicketReport & { mark?: { state: string 
   return reports.filter(
     (report) =>
       matchesProblem(report, filters.problem) &&
-      matchesAssignee(report, filters) &&
+      matchesAssignee(filters.assignee, report.ticket.assignee, filters.myAccountId) &&
       matchesBranch(report, filters.branch) &&
       (!search ||
         report.ticket.key.toLowerCase().includes(search) ||
@@ -142,19 +140,6 @@ function matchesProblem(
   if (problem === 'marked') return mark?.state === 'active';
   if (problem === 'attention') return flags.length > 0;
   return flags.some((flag) => flag.code === problem);
-}
-
-function matchesAssignee({ ticket }: TicketReport, filters: ReportFilters): boolean {
-  switch (filters.assignee) {
-    case 'all':
-      return true;
-    case 'unassigned':
-      return ticket.assignee === null;
-    case 'me':
-      return ticket.assignee?.id === filters.myAccountId;
-    default:
-      return ticket.assignee?.id === filters.assignee;
-  }
 }
 
 export function assignees(reports: TicketReport[]): { id: string; name: string }[] {

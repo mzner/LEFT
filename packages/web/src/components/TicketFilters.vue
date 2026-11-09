@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { SORT_LABELS, type AssigneeFilter, type BranchOption, type SortKey } from '../lib/view';
+import { ME, toggleAssignee, type AssigneeFilter } from '../lib/assignee-filter';
+import { SORT_LABELS, type BranchOption, type SortKey } from '../lib/view';
+import AssigneePicker from './AssigneePicker.vue';
 
 defineProps<{
   people: { id: string; name: string }[];
@@ -25,7 +27,7 @@ function onKey(event: KeyboardEvent) {
     searchInput.value?.focus();
   } else if (event.key === 'i') {
     event.preventDefault();
-    assignee.value = assignee.value === 'me' ? 'all' : 'me';
+    assignee.value = toggleAssignee(assignee.value, ME);
   }
 }
 onMounted(() => window.addEventListener('keydown', onKey));
@@ -44,22 +46,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
       placeholder="Find by key or summary  /"
       :data-active="search.trim() !== ''"
     />
-    <select
-      v-model="assignee"
-      aria-label="Assignee"
-      aria-keyshortcuts="i"
-      title="Press i to switch “Assigned to me” on or off"
-      :data-active="assignee !== 'all'"
-    >
-      <option value="all">Anyone</option>
-      <option value="me">Assigned to me</option>
-      <option value="unassigned">Unassigned</option>
-      <optgroup v-if="people.length > 0" label="Assignee">
-        <option v-for="person in people" :key="person.id" :value="person.id">
-          {{ person.name }}
-        </option>
-      </optgroup>
-    </select>
+    <AssigneePicker v-model="assignee" :people="people" />
     <select
       v-model="branch"
       aria-label="Branch"

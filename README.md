@@ -186,8 +186,13 @@ OAuth callback URLs work for both.
   - **Any branch** narrows the list to one branch, e.g. "Missing on
     stable-8.0".
   - Search finds tickets by key or summary; press `/` to jump to it.
-  - The assignee filter has "Assigned to me", which uses your Atlassian
-    account. Press `i` to switch it on or off.
+  - The assignee filter takes any number of choices: **Assigned to me** (your
+    Atlassian account), **Unassigned**, and the people with tickets in the
+    list. A ticket stays if it matches any of them, e.g. "Alex or Sam or
+    unassigned". The button names one or two choices and counts more; **Clear**
+    in the list resets it. Jira itself allows one assignee per ticket, so this
+    is about who you look at, not who a ticket has. Press `i` to add or remove
+    "Assigned to me" without touching the other choices.
   - A filter that hides tickets is tinted, and the headline says what it
     keeps ("Showing 20 of 77 tickets: assigned to you"), with **Clear
     filters**.
@@ -199,7 +204,7 @@ OAuth callback URLs work for both.
   | `j` / `k`      | Move the highlight to the next / previous ticket                 |
   | `l` / `h`      | Open / close the highlighted ticket's Details                    |
   | `o` or `Enter` | Flip the Details (`Enter` leaves a focused link or button alone) |
-  | `i`            | Switch "Assigned to me" on or off                                |
+  | `i`            | Add or remove "Assigned to me" in the assignee filter            |
   | `/`            | Jump to search                                                   |
   | `Esc`          | Close all open Details                                           |
 
