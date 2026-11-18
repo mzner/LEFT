@@ -170,6 +170,7 @@ button:disabled {
 .quiet-button {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   height: 32px;
   padding: 0 14px;
   border-radius: var(--radius);
@@ -220,6 +221,43 @@ button:disabled {
 .icon-button:hover {
   background: var(--action-tint);
   color: var(--action);
+}
+
+/* A suggested fix is available: tinted even at rest, so it reads as a button, not a stray glyph.
+   Narrow by design — a short word, not an icon, so its meaning needs no interpretation. */
+.fix-button {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--waiting-tint);
+  color: var(--waiting);
+  font-size: var(--text-s);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.fix-button:hover {
+  background: var(--waiting);
+  color: #fff;
+}
+
+/* A fix button standing in for a matrix glyph: same size as the glyph it replaces, but still
+   tinted at rest (like .fix-button above) so it reads as clickable, not a stray character. */
+.fix-button.is-missing {
+  height: auto;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--missing-tint);
+  font-weight: inherit;
+  cursor: pointer;
+}
+
+.fix-button.is-missing:hover {
+  background: var(--missing);
+  color: #fff;
 }
 
 /* ---- App frame --------------------------------------------------------- */
